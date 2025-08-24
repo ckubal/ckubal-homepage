@@ -1,0 +1,56 @@
+# Firebase & Node.js
+homepage-backend/functions/node_modules/
+homepage-backend/functions/.runtimeconfig.json
+homepage-backend/firebase-debug.log
+homepage-backend/functions/firebase-debug.log
+*.log
+
+# Environment and configuration files
+.env
+.env.local
+.env.*.local
+.firebaserc
+firebase.json
+firestore.rules
+firestore.indexes.json
+remoteconfig.template.json
+storage.rules
+
+# API Keys and sensitive data
+**/config.json
+**/credentials.json
+**/*-service-account.json
+**/*-firebase-adminsdk-*.json
+
+# Claude Code documentation (keep private per user request)
+CLAUDE.md
+**/CLAUDE.md
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Supporting/inspiration files (not needed in repo)
+supporting\ files/
+inspo\ landscapeimages/
+
+# Package locks (can be regenerated)
+homepage-backend/functions/package-lock.json
