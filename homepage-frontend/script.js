@@ -6,6 +6,7 @@ const currentSongEl = document.getElementById('current-song');
 const currentBookEl = document.getElementById('current-book');
 const weatherInfoEl = document.getElementById('weather-info');
 const sleepInfoEl = document.getElementById('sleep-info');
+const activityInfoEl = document.getElementById('activity-info');
 const lastUpdatedEl = document.getElementById('last-updated');
 
 // Utility functions
@@ -105,6 +106,17 @@ function updateUI(data) {
         sleepInfoEl.classList.remove('loading');
     }
     
+    // Update activity data
+    if (data.activityData) {
+        const { activity, distance } = data.activityData;
+        if (activity && distance) {
+            activityInfoEl.textContent = `${activity.toLowerCase()} (${distance})`;
+        } else {
+            activityInfoEl.textContent = 'no recent activity';
+        }
+        activityInfoEl.classList.remove('loading');
+    }
+    
     // Update last updated time
     if (data.lastUpdated) {
         const timeAgo = getTimeSince(data.lastUpdated);
@@ -117,6 +129,7 @@ function showError() {
     currentBookEl.textContent = 'unable to load';
     weatherInfoEl.textContent = 'unable to load';
     sleepInfoEl.textContent = 'unable to load';
+    activityInfoEl.textContent = 'unable to load';
     lastUpdatedEl.textContent = 'connection error';
     
     // Remove loading classes
@@ -131,6 +144,7 @@ function initializeLoading() {
     currentBookEl.classList.add('loading');
     weatherInfoEl.classList.add('loading');
     sleepInfoEl.classList.add('loading');
+    activityInfoEl.classList.add('loading');
 }
 
 // Initial load

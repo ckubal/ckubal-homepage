@@ -1,6 +1,7 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const axios = require("axios");
+const { google } = require("googleapis");
 
 // Initialize Firebase Admin SDK (only needs to be done once)
 admin.initializeApp();
@@ -89,12 +90,57 @@ async function getWhoopData() {
 }
 
 async function getBookData() {
-    // TODO: Implement Google Sheets API call (or other chosen method)
-    functions.logger.info("Fetching Book data...");
-    // Example for Google Sheets (requires googleapis library and auth)
-    // return { title: "Example Book", author: "Example Author" };
-    return { title: "Designing Data-Intensive Applications",
-        author: "Martin Kleppmann", fetchedAt: new Date() }; // Placeholder
+    functions.logger.info("Fetching Book data from Google Sheets...");
+
+    try {
+        // Check if Google Sheets config exists
+        const configDoc = await db.collection("config").doc("google_sheets").get();
+        if (!configDoc.exists || !configDoc.data().spreadsheet_id) {
+            functions.logger.warn("No Google Sheets configuration found");
+            return { title: "No book data", author: "Configure Google Sheets", fetchedAt: new Date() };
+        }
+
+        const { spreadsheet_id: spreadsheetId, range = "A1:B1" } = configDoc.data();
+
+        // Get service account credentials from Firebase config
+        const serviceAccount = JSON.parse(functions.config().google?.service_account || "{}");
+
+        if (!serviceAccount.client_email) {
+            functions.logger.error("Google service account not configured");
+            return { title: "Configuration needed", author: "Set up service account", fetchedAt: new Date() };
+        }
+
+        // Create auth client
+        const auth = new google.auth.GoogleAuth({
+            credentials: serviceAccount,
+            scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+        });
+
+        const sheets = google.sheets({ version: "v4", auth });
+
+        // Fetch data from the sheet
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: spreadsheetId,
+            range: range,
+        });
+
+        const rows = response.data.values;
+        if (!rows || rows.length === 0) {
+            return { title: "No data found", author: "", fetchedAt: new Date() };
+        }
+
+        // Assuming first row has [title, author]
+        const [title = "Unknown", author = "Unknown"] = rows[0];
+
+        return {
+            title,
+            author,
+            fetchedAt: new Date(),
+        };
+    } catch (error) {
+        functions.logger.error("Error fetching book data:", error);
+        return { title: "Error loading book", author: error.message, fetchedAt: new Date() };
+    }
 }
 
 async function getWeatherData() {
@@ -135,6 +181,73 @@ async function getWeatherData() {
     }
 }
 
+async function getStravaData() {
+    functions.logger.info("Fetching Strava activity data...");
+
+    try {
+        // Check if Strava tokens exist
+        const tokenDoc = await db.collection("config").doc("strava").get();
+        if (!tokenDoc.exists) {
+            functions.logger.warn("No Strava tokens found");
+            return { activity: "Connect Strava", distance: "N/A", fetchedAt: new Date() };
+        }
+
+        const { refresh_token: refreshToken, access_token: accessToken, expires_at: expiresAt } = tokenDoc.data();
+        const clientId = functions.config().strava?.client_id;
+        const clientSecret = functions.config().strava?.client_secret;
+
+        if (!clientId || !clientSecret) {
+            return { activity: "Strava not configured", distance: "N/A", fetchedAt: new Date() };
+        }
+
+        let currentAccessToken = accessToken;
+
+        // Check if token needs refresh
+        if (Date.now() / 1000 > expiresAt) {
+            functions.logger.info("Refreshing Strava token...");
+            const refreshResponse = await axios.post("https://www.strava.com/oauth/token", {
+                client_id: clientId,
+                client_secret: clientSecret,
+                refresh_token: refreshToken,
+                grant_type: "refresh_token",
+            });
+
+            currentAccessToken = refreshResponse.data.access_token;
+
+            // Update stored tokens
+            await db.collection("config").doc("strava").update({
+                access_token: refreshResponse.data.access_token,
+                refresh_token: refreshResponse.data.refresh_token,
+                expires_at: refreshResponse.data.expires_at,
+            });
+        }
+
+        // Get latest activity
+        const activitiesResponse = await axios.get("https://www.strava.com/api/v3/athlete/activities", {
+            headers: { "Authorization": `Bearer ${currentAccessToken}` },
+            params: { per_page: 1 },
+        });
+
+        const latestActivity = activitiesResponse.data[0];
+        if (!latestActivity) {
+            return { activity: "No recent activity", distance: "0 mi", fetchedAt: new Date() };
+        }
+
+        // Convert meters to miles
+        const distanceInMiles = (latestActivity.distance * 0.000621371).toFixed(1);
+
+        return {
+            activity: latestActivity.name,
+            type: latestActivity.type,
+            distance: `${distanceInMiles} mi`,
+            fetchedAt: new Date(),
+        };
+    } catch (error) {
+        functions.logger.error("Error fetching Strava data:", error);
+        return { activity: "Error loading activity", distance: "N/A", fetchedAt: new Date() };
+    }
+}
+
 // --- Main Scheduled Function ---
 
 // --- Main Scheduled Function ---
@@ -149,11 +262,12 @@ exports.fetchAndStoreData = functions.pubsub.schedule("every 15 minutes").onRun(
 
     try {
         // Fetch data from all sources in parallel
-        const [spotifyData, whoopData, bookData, weatherData] = await Promise.all([
+        const [spotifyData, whoopData, bookData, weatherData, stravaData] = await Promise.all([
             getSpotifyData(),
             getWhoopData(),
             getBookData(),
             getWeatherData(),
+            getStravaData(),
         ]);
 
         // Prepare data object to save
@@ -162,6 +276,7 @@ exports.fetchAndStoreData = functions.pubsub.schedule("every 15 minutes").onRun(
             sleepStatus: whoopData,
             currentBook: bookData,
             weatherInfo: weatherData,
+            activityData: stravaData,
             lastUpdated: new Date(), // Timestamp of the whole update cycle
         };
 
@@ -308,4 +423,115 @@ exports.updateLocation = functions.https.onRequest(async (req, res) => {
         functions.logger.error("Error updating location:", error);
         res.status(500).send("Error updating location");
     }
+});
+
+// Configure Google Sheets for book data
+exports.configureGoogleSheets = functions.https.onRequest(async (req, res) => {
+    // Set CORS headers
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+
+    if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+    }
+
+    try {
+        const { spreadsheet_id: spreadsheetId, range = "A1:B1" } = req.body;
+
+        if (!spreadsheetId) {
+            res.status(400).send("Missing spreadsheet_id");
+            return;
+        }
+
+        // Store Google Sheets configuration
+        await db.collection("config").doc("google_sheets").set({
+            spreadsheet_id: spreadsheetId,
+            range,
+            updated_at: new Date(),
+        });
+
+        res.status(200).send("Google Sheets configured successfully");
+    } catch (error) {
+        functions.logger.error("Error configuring Google Sheets:", error);
+        res.status(500).send("Failed to configure Google Sheets");
+    }
+});
+
+// Strava OAuth callback
+exports.stravaCallback = functions.https.onRequest(async (req, res) => {
+    const { code } = req.query;
+
+    if (!code) {
+        res.status(400).send("Authorization code missing");
+        return;
+    }
+
+    try {
+        const clientId = functions.config().strava?.client_id;
+        const clientSecret = functions.config().strava?.client_secret;
+
+        // Exchange code for tokens
+        const tokenResponse = await axios.post("https://www.strava.com/oauth/token", {
+            client_id: clientId,
+            client_secret: clientSecret,
+            code: code,
+            grant_type: "authorization_code",
+        });
+
+        const { access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt } = tokenResponse.data;
+
+        // Store tokens in Firestore
+        await db.collection("config").doc("strava").set({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            expires_at: expiresAt,
+            athlete_id: tokenResponse.data.athlete.id,
+            updated_at: new Date(),
+        });
+
+        functions.logger.info("Strava connected successfully");
+
+        res.status(200).send(`
+            <html>
+                <body style="font-family: system-ui; padding: 20px; background: #0a0a0a; color: #fff;">
+                    <h2>Strava Connected Successfully!</h2>
+                    <p>You can close this window and return to your homepage.</p>
+                    <script>setTimeout(() => window.close(), 3000);</script>
+                </body>
+            </html>
+        `);
+    } catch (error) {
+        functions.logger.error("Strava OAuth error:", error);
+        res.status(500).send("Failed to connect Strava");
+    }
+});
+
+// Strava auth URL generator
+exports.getStravaAuthUrl = functions.https.onRequest((req, res) => {
+    // Set CORS headers
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+
+    if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+    }
+
+    const clientId = functions.config().strava?.client_id;
+
+    if (!clientId) {
+        res.status(500).send("Strava not configured");
+        return;
+    }
+
+    const redirectUri = "https://us-central1-ckubal-homepage-be.cloudfunctions.net/stravaCallback";
+    const scope = "activity:read";
+
+    const authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}` +
+        `&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`;
+
+    res.json({ authUrl });
 });
