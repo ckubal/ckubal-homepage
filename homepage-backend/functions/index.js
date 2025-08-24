@@ -100,7 +100,7 @@ async function getBookData() {
             return { title: "No book data", author: "Configure Google Sheets", fetchedAt: new Date() };
         }
 
-        const { spreadsheet_id: spreadsheetId, range = "A1:B1" } = configDoc.data();
+        const { spreadsheet_id: spreadsheetId, range = "I1:N100" } = configDoc.data();
 
         // Get service account credentials from Firebase config
         const serviceAccount = JSON.parse(functions.config().google?.service_account || "{}");
@@ -129,8 +129,17 @@ async function getBookData() {
             return { title: "No data found", author: "", fetchedAt: new Date() };
         }
 
-        // Assuming first row has [title, author]
-        const [title = "Unknown", author = "Unknown"] = rows[0];
+        // Find the first row where column N (index 5 in I:N range) is "In progress"
+        // Columns: I(0), J(1), K(2-title), L(3-author), M(4), N(5-status)
+        const currentBook = rows.find((row) => row[5] === "In progress");
+
+        if (!currentBook) {
+            return { title: "No book in progress", author: "", fetchedAt: new Date() };
+        }
+
+        // Extract title (column K, index 2) and author (column L, index 3)
+        const title = currentBook[2] || "Unknown";
+        const author = currentBook[3] || "Unknown";
 
         return {
             title,
