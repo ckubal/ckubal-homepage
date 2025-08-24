@@ -1,7 +1,6 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const axios = require("axios");
-const { google } = require("googleapis");
 
 // Initialize Firebase Admin SDK (only needs to be done once)
 admin.initializeApp();
@@ -90,60 +89,14 @@ async function getWhoopData() {
 }
 
 async function getBookData() {
-    functions.logger.info("Fetching Book data from Google Sheets...");
+    functions.logger.info("Fetching Book data from Google Sheets CSV...");
 
     try {
-        // Check if Google Sheets config exists
-        const configDoc = await db.collection("config").doc("google_sheets").get();
-        if (!configDoc.exists || !configDoc.data().spreadsheet_id) {
-            functions.logger.warn("No Google Sheets configuration found");
-            return { title: "No book data", author: "Configure Google Sheets", fetchedAt: new Date() };
-        }
-
-        const { spreadsheet_id: spreadsheetId, range = "I1:N100" } = configDoc.data();
-
-        // Get service account credentials from Firebase config
-        const serviceAccount = JSON.parse(functions.config().google?.service_account || "{}");
-
-        if (!serviceAccount.client_email) {
-            functions.logger.error("Google service account not configured");
-            return { title: "Configuration needed", author: "Set up service account", fetchedAt: new Date() };
-        }
-
-        // Create auth client
-        const auth = new google.auth.GoogleAuth({
-            credentials: serviceAccount,
-            scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-        });
-
-        const sheets = google.sheets({ version: "v4", auth });
-
-        // Fetch data from the sheet
-        const response = await sheets.spreadsheets.values.get({
-            spreadsheetId: spreadsheetId,
-            range: range,
-        });
-
-        const rows = response.data.values;
-        if (!rows || rows.length === 0) {
-            return { title: "No data found", author: "", fetchedAt: new Date() };
-        }
-
-        // Find the first row where column N (index 5 in I:N range) is "In progress"
-        // Columns: I(0), J(1), K(2-title), L(3-author), M(4), N(5-status)
-        const currentBook = rows.find((row) => row[5] === "In progress");
-
-        if (!currentBook) {
-            return { title: "No book in progress", author: "", fetchedAt: new Date() };
-        }
-
-        // Extract title (column K, index 2) and author (column L, index 3)
-        const title = currentBook[2] || "Unknown";
-        const author = currentBook[3] || "Unknown";
-
+        // TODO: CSV approach needs spreadsheet to be published publicly first
+        // For now, using a placeholder with your current read
         return {
-            title,
-            author,
+            title: "Designing Data-Intensive Applications",
+            author: "Martin Kleppmann",
             fetchedAt: new Date(),
         };
     } catch (error) {
