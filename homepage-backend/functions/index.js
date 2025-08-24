@@ -92,11 +92,46 @@ async function getBookData() {
     functions.logger.info("Fetching Book data from Google Sheets CSV...");
 
     try {
-        // TODO: CSV approach needs spreadsheet to be published publicly first
-        // For now, using a placeholder with your current read
+        // Use the working CSV URL from your weird little ideas site
+        const csvUrl = "https://docs.google.com/spreadsheets/d/e/" +
+            "2PACX-1vQjPR6atSEfc5ItyFLmzEzabJeXG_Tit6_Bbmwu31_JptS4trGGtDR0zla6Q99yNtK9j9VS3VVsf5Ug/" +
+            "pub?gid=1869146893&single=true&output=csv";
+
+        const response = await axios.get(csvUrl);
+        const csvText = response.data;
+
+        // Split into rows and filter out empty ones
+        const rows = csvText.split("\n").filter((row) => row.trim() !== "");
+
+        if (rows.length === 0) {
+            return { title: "No data found", author: "", fetchedAt: new Date() };
+        }
+
+        // Look for the first row where column 13 contains "In progress"
+        let currentBook = null;
+
+        for (const row of rows) {
+            const columns = row.split(",");
+            // Status is in column 13 (0-indexed = 12)
+            const status = columns[12] ? columns[12].trim().replace(/"/g, "") : "";
+
+            if (status === "In progress") {
+                currentBook = columns;
+                break;
+            }
+        }
+
+        if (!currentBook) {
+            return { title: "No book in progress", author: "", fetchedAt: new Date() };
+        }
+
+        // Extract title (column 11, index 10) and author (column 12, index 11)
+        const title = currentBook[10] ? currentBook[10].trim().replace(/"/g, "") : "Unknown";
+        const author = currentBook[11] ? currentBook[11].trim().replace(/"/g, "") : "Unknown";
+
         return {
-            title: "Designing Data-Intensive Applications",
-            author: "Martin Kleppmann",
+            title,
+            author,
             fetchedAt: new Date(),
         };
     } catch (error) {
