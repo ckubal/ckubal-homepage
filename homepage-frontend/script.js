@@ -92,7 +92,9 @@ function getWorkoutDescription(activityData) {
         workoutType = `${duration} soulcycle class`;
     } else if (activity.includes('peloton')) {
         workoutType = `${duration} peloton`;
-    } else if (activity.includes('tonal') || activity.includes('lift') || activity.includes('strength')) {
+    } else if (activity.includes('tonal')) {
+        workoutType = `${duration} tonal lift`;
+    } else if (activity.includes('lift') || activity.includes('strength')) {
         workoutType = `${duration} weightlifting`;
     } else if (activity.includes('walk')) {
         workoutType = `${formattedDistance} walk`;
