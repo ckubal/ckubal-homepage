@@ -89,24 +89,28 @@ function getWorkoutDescription(activityData) {
     } else if (activity.includes('ride') || activity.includes('bike') || activity.includes('cycling')) {
         workoutType = `${formattedDistance} bike ride`;
     } else if (activity.includes('soulcycle') || activity.includes('spin')) {
-        workoutType = `${duration} soulcycle class`;
+        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
+        workoutType = `${durationWithMin} soulcycle class`;
     } else if (activity.includes('peloton')) {
-        workoutType = `${duration} peloton`;
+        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
+        workoutType = `${durationWithMin} peloton`;
     } else if (activity.includes('tonal')) {
-        workoutType = `${duration} tonal lift`;
+        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
+        workoutType = `${durationWithMin} tonal session`;
     } else if (activity.includes('lift') || activity.includes('strength')) {
-        workoutType = `${duration} weightlifting`;
+        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
+        workoutType = `${durationWithMin} weightlifting session`;
     } else if (activity.includes('walk')) {
         workoutType = `${formattedDistance} walk`;
     } else if (activity.includes('hike') || activity.includes('mountain')) {
         workoutType = `${formattedDistance} hike`;
     } else if (activity.includes('yoga')) {
-        workoutType = `${duration} yoga session`;
+        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
+        workoutType = `${durationWithMin} yoga session`;
     } else if (activity.includes('swim')) {
         // use duration for swims since strava distance is often wrong
-        // format duration to be clear it's minutes
-        const durationWithUnit = duration.replace(/(\d+)m/, '$1 min');
-        workoutType = `${durationWithUnit} swim`;
+        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
+        workoutType = `${durationWithMin} swim`;
     } else {
         workoutType = `${formattedDistance} ${activity}`;
     }
