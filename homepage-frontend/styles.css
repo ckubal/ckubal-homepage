@@ -2686,7 +2686,7 @@ button.nav-arrow,
         flex-direction: column !important;
     }
     
-    /* Album thumbnails on mobile - single container with 5x2 grid */
+    /* Album thumbnails on mobile - hide desktop split layout */
     .album-thumbnails-left,
     .album-thumbnails-right {
         display: none !important; /* Hide desktop split layout */
@@ -2700,30 +2700,56 @@ button.nav-arrow,
         margin-top: 20px;
     }
     
-    /* Style for album covers on mobile */
-    .album-thumbnail {
-        width: calc(20% - 8px) !important; /* 5 across with gaps */
-        height: auto !important;
-        margin: 4px !important;
-        display: inline-block !important;
-    }
-    
-    .album-thumbnail img {
-        width: 100% !important;
-        height: auto !important;
-        aspect-ratio: 1 !important;
-        object-fit: cover !important;
-        border-radius: 4px !important;
-    }
+    /* Remove this duplicate - handled by .mobile-albums-grid .album-thumbnail below */
     
     /* Mobile albums container - show all 10 in 5x2 grid */
     .mobile-albums-grid {
         display: flex !important;
         flex-wrap: wrap !important;
         justify-content: space-between !important;
-        gap: 8px !important;
+        gap: 6px !important;
         margin-top: 20px !important;
         width: 100% !important;
+        padding: 0 !important;
+    }
+    
+    /* Make sure mobile album grid is visible */
+    .mobile-albums-grid .album-thumbnail {
+        width: calc(20% - 5px) !important; /* 5 across with small gaps */
+        height: auto !important;
+        margin: 0 !important;
+        display: block !important;
+    }
+    
+    .mobile-albums-grid .album-thumbnail img {
+        width: 100% !important;
+        height: auto !important;
+        aspect-ratio: 1 !important;
+        object-fit: cover !important;
+        border-radius: 3px !important;
+    }
+    
+    /* Make album list title fit on one line */
+    .goat-rappers-title {
+        font-size: 1rem !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        width: 100% !important;
+    }
+    
+    /* Reduce spacing between workplace names on mobile */
+    .experience-names-row {
+        gap: 4px 8px !important; /* Much smaller gaps */
+        justify-content: space-evenly !important;
+        flex-wrap: wrap !important;
+        line-height: 1.2 !important;
+    }
+    
+    .experience-name-inline {
+        font-size: 0.85rem !important; /* Slightly smaller text */
+        margin: 0 !important;
+        padding: 0 !important;
     }
 }
 
