@@ -938,7 +938,13 @@ function initializeShoeCollectionOriginal() {
 let shoeCollectionInitialized = false;
 
 function initializeShoeCollection(carouselId = 'shoe-carousel') {
+    // Only skip if static shoe carousel already initialized
     if (shoeCollectionInitialized && carouselId === 'shoe-carousel') return;
+    
+    // Reset flag for dynamic carousels to allow reinitialization
+    if (carouselId !== 'shoe-carousel') {
+        shoeCollectionInitialized = false;
+    }
     
     const shoeCarousel = document.getElementById(carouselId);
     
@@ -947,6 +953,16 @@ function initializeShoeCollection(carouselId = 'shoe-carousel') {
     if (!shoeCarousel) {
         console.log('Missing shoe collection elements, skipping initialization');
         return;
+    }
+    
+    // Destroy existing swiper if it exists
+    if (window.currentShoeSwiper) {
+        try {
+            window.currentShoeSwiper.destroy(true, true);
+            window.currentShoeSwiper = null;
+        } catch (e) {
+            console.log('Error destroying previous shoe swiper:', e);
+        }
     }
     
     shoeCollectionInitialized = true;
@@ -978,7 +994,7 @@ function initializeShoeCollection(carouselId = 'shoe-carousel') {
         
         const randomIndex = Math.floor(Math.random() * shoeCollection.length);
         
-        const shoeSwiper = new Swiper('.shoe-swiper', {
+        const shoeSwiper = window.currentShoeSwiper = new Swiper('.shoe-swiper', {
             effect: 'coverflow',
             grabCursor: true,
             centeredSlides: true,
@@ -1068,7 +1084,13 @@ function initializeShoeCollection(carouselId = 'shoe-carousel') {
 let jerseyCollectionInitialized = false;
 
 function initializeJerseyCollection(carouselId = 'jersey-carousel') {
+    // Only skip if static jersey carousel already initialized
     if (jerseyCollectionInitialized && carouselId === 'jersey-carousel') return;
+    
+    // Reset flag for dynamic carousels to allow reinitialization
+    if (carouselId !== 'jersey-carousel') {
+        jerseyCollectionInitialized = false;
+    }
     
     const jerseyCarousel = document.getElementById(carouselId);
     
@@ -1077,6 +1099,16 @@ function initializeJerseyCollection(carouselId = 'jersey-carousel') {
     if (!jerseyCarousel) {
         console.log('Missing jersey collection elements, skipping initialization');
         return;
+    }
+    
+    // Destroy existing swiper if it exists
+    if (window.currentJerseySwiper) {
+        try {
+            window.currentJerseySwiper.destroy(true, true);
+            window.currentJerseySwiper = null;
+        } catch (e) {
+            console.log('Error destroying previous jersey swiper:', e);
+        }
     }
     
     jerseyCollectionInitialized = true;
@@ -1108,7 +1140,7 @@ function initializeJerseyCollection(carouselId = 'jersey-carousel') {
         
         const randomIndex = Math.floor(Math.random() * jerseyCollection.length);
         
-        const jerseySwiper = new Swiper('.jersey-swiper', {
+        const jerseySwiper = window.currentJerseySwiper = new Swiper('.jersey-swiper', {
             effect: 'coverflow',
             grabCursor: true,
             centeredSlides: true,
@@ -1349,7 +1381,13 @@ const recordCollection = [
 let recordCollectionInitialized = false;
 
 function initializeRecordCollection(carouselId = 'record-carousel') {
+    // Only skip if static record carousel already initialized  
     if (recordCollectionInitialized && carouselId === 'record-carousel') return;
+    
+    // Reset flag for dynamic carousels to allow reinitialization
+    if (carouselId !== 'record-carousel') {
+        recordCollectionInitialized = false;
+    }
     
     const recordCarousel = document.getElementById(carouselId);
     
@@ -1358,6 +1396,16 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
     if (!recordCarousel) {
         console.log('Missing record collection elements, skipping initialization');
         return;
+    }
+    
+    // Destroy existing swiper if it exists
+    if (window.currentRecordSwiper) {
+        try {
+            window.currentRecordSwiper.destroy(true, true);
+            window.currentRecordSwiper = null;
+        } catch (e) {
+            console.log('Error destroying previous record swiper:', e);
+        }
     }
     
     recordCollectionInitialized = true;
@@ -1388,7 +1436,7 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
         
         const randomIndex = Math.floor(Math.random() * recordCollection.length);
         
-        const recordSwiper = new Swiper('.record-swiper', {
+        const recordSwiper = window.currentRecordSwiper = new Swiper('.record-swiper', {
             effect: 'coverflow',
             grabCursor: true,
             centeredSlides: true,
