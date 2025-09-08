@@ -1000,12 +1000,24 @@ function initializeShoeCollection(carouselId = 'shoe-carousel') {
                 modifier: 1,
                 slideShadows: true,
             },
+            // Force initialization and proper loading
+            observer: true,
+            observeParents: true,
+            observeSlideChildren: true,
+            updateOnImagesReady: true,
+            preloadImages: false,
+            lazy: {
+                loadPrevNext: true,
+            },
+            watchOverflow: true,
             breakpoints: {
-                // Mobile: simple centered slides
+                // Mobile: optimized for shoes
                 320: {
-                    slidesPerView: 1,
-                    spaceBetween: 30,
+                    slidesPerView: 1.15,
+                    spaceBetween: 15,
                     centeredSlides: true,
+                    effect: 'slide', // Simpler effect for mobile
+                    loop: true,
                 },
                 // Desktop: coverflow effect  
                 769: {
@@ -1027,9 +1039,19 @@ function initializeShoeCollection(carouselId = 'shoe-carousel') {
             on: {
                 init: function () {
                     console.log('Shoe Swiper initialized successfully on slide:', randomIndex);
+                    // Force update after initialization to ensure proper mobile centering
+                    setTimeout(() => {
+                        this.update();
+                        this.updateSlides();
+                        this.slideTo(this.activeIndex, 0);
+                    }, 50);
                 },
                 slideChange: function () {
                     console.log('Shoe slide changed to:', this.activeIndex);
+                },
+                resize: function() {
+                    this.update();
+                    this.updateSlides();
                 }
             }
         });
@@ -1108,12 +1130,24 @@ function initializeJerseyCollection(carouselId = 'jersey-carousel') {
                 modifier: 1,
                 slideShadows: true,
             },
+            // Force initialization and proper loading
+            observer: true,
+            observeParents: true,
+            observeSlideChildren: true,
+            updateOnImagesReady: true,
+            preloadImages: false,
+            lazy: {
+                loadPrevNext: true,
+            },
+            watchOverflow: true,
             breakpoints: {
-                // Mobile: simple centered slides
+                // Mobile: optimized for jerseys  
                 320: {
-                    slidesPerView: 1,
-                    spaceBetween: 30,
+                    slidesPerView: 1.1,
+                    spaceBetween: 10,
                     centeredSlides: true,
+                    effect: 'slide', // Simpler effect for mobile
+                    loop: true,
                 },
                 // Desktop: coverflow effect  
                 769: {
@@ -1135,9 +1169,19 @@ function initializeJerseyCollection(carouselId = 'jersey-carousel') {
             on: {
                 init: function () {
                     console.log('Jersey Swiper initialized successfully on slide:', randomIndex);
+                    // Force update after initialization to ensure proper mobile centering
+                    setTimeout(() => {
+                        this.update();
+                        this.updateSlides();
+                        this.slideTo(this.activeIndex, 0);
+                    }, 50);
                 },
                 slideChange: function () {
                     console.log('Jersey slide changed to:', this.activeIndex);
+                },
+                resize: function() {
+                    this.update();
+                    this.updateSlides();
                 }
             }
         });
@@ -1366,14 +1410,26 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
                 modifier: 1,
                 slideShadows: true,
             },
+            // Force initialization and proper loading
+            observer: true,
+            observeParents: true,
+            observeSlideChildren: true,
+            updateOnImagesReady: true,
+            preloadImages: false,
+            lazy: {
+                loadPrevNext: true,
+            },
             breakpoints: {
-                // Mobile: single centered slide
+                // Mobile: optimized for records
                 320: {
-                    slidesPerView: 1,
+                    slidesPerView: 1.2,
+                    spaceBetween: 20,
+                    centeredSlides: true,
+                    effect: 'slide', // Simpler effect for mobile
                     coverflowEffect: {
                         rotate: 0,
                         stretch: 0,
-                        depth: 100,
+                        depth: 0,
                         modifier: 1,
                         slideShadows: false,
                     },
@@ -1398,9 +1454,19 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
             on: {
                 init: function () {
                     console.log('Record Swiper initialized successfully on slide:', randomIndex);
+                    // Force update after initialization to ensure proper mobile centering
+                    setTimeout(() => {
+                        this.update();
+                        this.updateSlides();
+                        this.slideTo(this.activeIndex, 0);
+                    }, 50);
                 },
                 slideChange: function () {
                     console.log('Record slide changed to:', this.activeIndex);
+                },
+                resize: function() {
+                    this.update();
+                    this.updateSlides();
                 }
             }
         });

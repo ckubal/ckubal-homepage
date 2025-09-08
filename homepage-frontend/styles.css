@@ -2436,22 +2436,34 @@ button.nav-arrow,
     }
     
     
-    /* Mobile Swiper containers - properly centered */
-    .record-swiper-container, .shoe-swiper-container {
+    /* Mobile Swiper containers - properly centered and sized */
+    .record-swiper-container {
         width: 100% !important;
-        max-width: calc(100vw - 20px) !important;
-        height: 260px !important; /* More height for album/sneaker text */
-        margin: 15px auto !important; /* Center the container */
-        overflow: visible !important;
+        max-width: 100% !important;
+        height: 320px !important; /* More height for album text */
+        margin: 0 auto !important;
+        padding: 0 10px !important; /* Small padding for edge visibility */
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+    }
+    
+    .shoe-swiper-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 280px !important; /* Good height for shoes */
+        margin: 0 auto !important;
+        padding: 0 10px !important;
+        overflow: hidden !important;
         box-sizing: border-box !important;
     }
     
     .jersey-swiper-container {
         width: 100% !important;
-        max-width: calc(100vw - 20px) !important;
-        height: 250px !important; /* Good height for jerseys */
-        margin: 15px auto !important; /* Center the container */
-        overflow: visible !important;
+        max-width: 100% !important;
+        height: 280px !important; /* Good height for jerseys */
+        margin: 0 auto !important;
+        padding: 0 10px !important;
+        overflow: hidden !important;
         box-sizing: border-box !important;
     }
     
@@ -2462,13 +2474,26 @@ button.nav-arrow,
         overflow: visible;
     }
     
-    /* Mobile slides - better centering and more text space */
-    .record-swiper .swiper-slide, .shoe-swiper .swiper-slide {
-        width: 200px !important; /* Wider for better text containment */
+    /* Mobile slides - proper sizing for centering */
+    .record-swiper .swiper-slide {
+        width: auto !important; /* Let Swiper calculate based on slidesPerView */
         text-align: center !important;
         background: rgba(255, 255, 255, 0.03) !important;
         border-radius: 8px !important;
-        padding: 15px 10px 25px 10px !important; /* More bottom padding for text */
+        padding: 15px !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
+        align-items: center !important;
+    }
+    
+    .shoe-swiper .swiper-slide {
+        width: auto !important;
+        text-align: center !important;
+        background: rgba(255, 255, 255, 0.03) !important;
+        border-radius: 8px !important;
+        padding: 15px !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         display: flex !important;
         flex-direction: column !important;
@@ -2477,7 +2502,7 @@ button.nav-arrow,
     }
     
     .jersey-swiper .swiper-slide {
-        width: 200px !important;
+        width: auto !important;
         text-align: center !important;
         background: rgba(255, 255, 255, 0.03) !important;
         border-radius: 8px !important;
