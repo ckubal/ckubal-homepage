@@ -3,24 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Charlie Kubal</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>charlie kubal</title>
+    <link rel="stylesheet" href="styles.css?v=20250905vv">
+    <!-- Swiper CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
 </head>
 <body>
     <div class="container">
         <div class="left-column">
-            <h1 class="main-heading">hi, i'm charlie</h1>
+            <div class="heading-with-figure">
+                <h1 class="main-heading">hi, i'm<br>charlie</h1>
+                <div class="walking-figure">
+                    <img src="assets/walking-figure.gif" alt="" />
+                </div>
+            </div>
+            
+            <div class="social-icons">
+                <a href="https://ckubal.substack.com" target="_blank" rel="noopener" class="social-icon">
+                    <img src="assets/substack.svg" alt="Substack" />
+                </a>
+                <a href="https://linkedin.com/in/ckubal" target="_blank" rel="noopener" class="social-icon">
+                    <img src="assets/linkedin.svg" alt="LinkedIn" />
+                </a>
+                <a href="https://twitter.com/ckubal" target="_blank" rel="noopener" class="social-icon">
+                    <img src="assets/twitter.svg" alt="Twitter" />
+                </a>
+                <a href="https://instagram.com/ckubal" target="_blank" rel="noopener" class="social-icon">
+                    <img src="assets/instagram.svg" alt="Instagram" />
+                </a>
+                <a href="https://www.roblox.com/users/2757504224/profile" target="_blank" rel="noopener" class="social-icon">
+                    <img src="assets/roblox.svg" alt="Roblox" />
+                </a>
+                <a href="https://github.com/ckubal" target="_blank" rel="noopener" class="social-icon">
+                    <img src="assets/github.svg" alt="GitHub" />
+                </a>
+                <a href="https://open.spotify.com/user/ckubal" target="_blank" rel="noopener" class="social-icon">
+                    <img src="assets/spotify.svg" alt="Spotify" />
+                </a>
+                <a href="https://www.goodreads.com/user/show/23810680-charlie-kubal" target="_blank" rel="noopener" class="social-icon">
+                    <img src="assets/goodreads.svg" alt="Goodreads" />
+                </a>
+                <a href="http://www.waitwhatmusic.com/" target="_blank" rel="noopener" class="social-icon">
+                    <img src="assets/waitwhat.svg" alt="Wait What" />
+                </a>
+                <a href="https://weirdlittleideas.com" target="_blank" rel="noopener" class="social-icon">
+                    <img src="assets/weirdlittleideas.svg" alt="Weird Little Ideas" />
+                </a>
+                <a href="#" id="theme-toggle" class="social-icon" title="Toggle light/dark mode">
+                    <img src="assets/circle-toggle.svg" alt="Toggle Theme" />
+                </a>
+            </div>
         </div>
         
         <div class="right-column">
             <div class="subtitle-section">
                 <p class="subtitle">avatars + ai at roblox</p>
-                <p class="body-text">build products and design things</p>
-                <p class="body-text">make music and weird little ideas for fun</p>
+                <p class="body-text">build products, create art, stay curious.<br>nothing matters more than your people.</p>
             </div>
             
-            <div class="coordinates">
-                <p class="location-text">current city: san francisco</p>
+        </div>
+    </div>
+    
+    <div class="divider"></div>
+    
+    <div class="container biography">
+        <div class="left-column">
+            <div class="bio-labels">
+                <span class="bio-label clickable" data-paragraph="work">work</span>
+                <span class="bio-label-separator">|</span>
+                <span class="bio-label clickable" data-paragraph="create">create</span>
+                <span class="bio-label-separator">|</span>
+                <span class="bio-label clickable" data-paragraph="think">think</span>
+            </div>
+            <div class="bio-content">
+                <p class="bio-paragraph" id="bio-work" style="display: none;">product at <span class="highlight clickable" data-target="work-roblox">roblox</span> (identity, self-expression, ai). ex-<span class="highlight clickable" data-target="work-founder">founder</span>, early stage startups. couple of <span class="highlight clickable" data-target="work-exits">exits</span>. mostly product, some <span class="highlight clickable" data-target="work-design">design</span>. largely consumer mobile.<br><br>most interested in tech that unlocks <span class="highlight clickable" data-target="work-creativity">creativity</span>, <span class="highlight clickable" data-target="work-connecting">connects people</span>, and enables the <span class="highlight clickable" data-target="work-best-versions">best versions of ourselves</span>. occasional <span class="highlight clickable" data-target="investing">angel investor, advisor</span>.</p>
+                
+                <p class="bio-paragraph" id="bio-create" style="display: none;">tinkerer, bringing <strong><span class="highlight clickable" data-target="builds">weird little ideas</span></strong> to life. making mobile/web apps, pulling on threads I find interesting: ai cartoon gen, nostalgia tech, running soundtrack visualizer. made a book of hip-hop cartoons.<br><br>sample-based music production as <strong><span class="highlight clickable" data-target="music">wait what</span></strong>. 10s of millions of plays, 100 shows: stadium in new york, warehouse in toronto, clubs in bangkok and vegas. lots of adventures, late nights, and plane flights.</p>
+                
+                <p class="bio-paragraph" id="bio-think" style="display: none;">frequent <span class="highlight clickable" data-target="favorite-reads">reader</span>, <span class="highlight clickable" data-target="favorite-music">music listener</span> and <span class="highlight clickable" data-target="podcasts">podcast enjoyer</span>. <span class="highlight clickable" data-target="writing">writer</span> on human behavior, social observation, how we shape the internet, and it shapes us. fan of hip hop, precise comedy, and finding the perfect turn of phrase. collector of <span class="highlight clickable" data-target="records">records</span>, <span class="highlight clickable" data-target="sneakers">sneakers</span>, and <span class="highlight clickable" data-target="jerseys">jerseys</span>.<br><br>care about personal growth/health/<span class="highlight clickable" data-target="goat-rappers">taste</span> and power of having true agency over your time. convinced that the stories we tell ourselves and others shape much more than we imagine. doing my best and believe that others are, too.</p>
+            </div>
+        </div>
+        
+        <div class="right-column">
+            <div class="dynamic-content" id="dynamic-content">
+                <!-- Content will be populated dynamically based on clicked highlights -->
             </div>
         </div>
     </div>
@@ -33,80 +99,49 @@
         </div>
         
         <div class="right-column">
-            <div class="status-row">
-                <div class="status-item">
-                    <span class="status-icon">🎵</span>
-                    <span class="status-value" id="current-song">loading...</span>
-                </div>
-                
-                <div class="status-item">
-                    <span class="status-icon">📖</span>
-                    <span class="status-value" id="current-book">loading...</span>
-                </div>
-                
-                <div class="status-item">
-                    <span class="status-icon">🌤️</span>
-                    <span class="status-value" id="weather-info">loading...</span>
-                </div>
-                
-                <div class="status-item">
-                    <span class="status-icon">🏃</span>
-                    <span class="status-value" id="activity-info">8,432 steps, last run 2 days ago</span>
-                </div>
-                
-                <div class="status-item">
-                    <span class="status-icon">😴</span>
-                    <span class="status-value" id="sleep-info">loading...</span>
-                </div>
+            <div class="status-narrative">
+                <p class="narrative-text" id="narrative-paragraph">loading...</p>
+            </div>
+            
+            <div class="status-info">
+                <p class="last-updated" id="last-updated">last updated...</p>
             </div>
         </div>
-        
     </div>
+    
     
     <div class="divider"></div>
     
     <div class="container">
         <div class="left-column">
-            <h2 class="section-heading">experience</h2>
+            <h2 class="section-heading">contact</h2>
         </div>
         
         <div class="right-column">
-            <p class="section-description">i've worked on avatar systems, ai experiences, and consumer products at companies focused on the future of digital interaction and virtual worlds.</p>
-        </div>
-    </div>
-    
-    <div class="logo-grid-wrapper">
-        <div class="logo-grid">
-            <div class="logo-item">
-                <div class="logo-placeholder roblox">roblox</div>
-            </div>
-            <div class="logo-item">
-                <div class="logo-placeholder sway">sway</div>
-            </div>
-            <div class="logo-item">
-                <div class="logo-placeholder bungalow">bungalow</div>
-            </div>
-            <div class="logo-item">
-                <div class="logo-placeholder ideo">ideo</div>
-            </div>
-            <div class="logo-item">
-                <div class="logo-placeholder life360">life360</div>
-            </div>
-            <div class="logo-item">
-                <div class="logo-placeholder chronos">chronos</div>
-            </div>
-            <div class="logo-item">
-                <div class="logo-placeholder google">google</div>
-            </div>
-            <div class="logo-item">
-                <div class="logo-placeholder stanford">stanford</div>
-            </div>
-            <div class="logo-item">
-                <div class="logo-placeholder columbia">columbia</div>
+            <div class="contact-info">
+                <p class="contact-text">always looking to connect with curious people—builders, founders, creatives, writers, musicians, or anyone with interesting ideas and stories. firstinitial,lastname [at] gmail</p>
             </div>
         </div>
     </div>
     
-    <script src="script.js"></script>
+    <!-- Crystal Quest Easter Egg Modal - Temporarily Commented Out -->
+    <!-- 
+    <div id="crystal-quest-modal" class="crystal-modal">
+        <div class="crystal-modal-content">
+            <span class="crystal-close">&times;</span>
+            <h3>you found the secret! 🎮</h3>
+            <iframe src="https://classicreload.com/play/mac-crystalquest.html" 
+                    width="800" 
+                    height="600" 
+                    frameborder="0"
+                    id="crystal-game-frame">
+            </iframe>
+        </div>
+    </div>
+    -->
+
+    <!-- Swiper JS -->
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script src="script.js?v=20250905z"></script>
 </body>
 </html>
