@@ -1603,6 +1603,38 @@ function isMobileDevice() {
     return window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
+// wait for page readiness before initializing swipers
+function waitForReadyThenInitialize(initFunction, type) {
+    console.log(`Waiting for readiness to initialize ${type}...`);
+    
+    // Check if page is still loading
+    const checkReadiness = () => {
+        const isDocumentReady = document.readyState === 'complete';
+        const isSwiperLoaded = typeof Swiper !== 'undefined';
+        const timeSinceLoad = Date.now() - window.pageLoadTime;
+        
+        console.log(`${type} readiness check:`, {
+            documentReady: isDocumentReady,
+            swiperLoaded: isSwiperLoaded,
+            timeSinceLoad: timeSinceLoad
+        });
+        
+        if (isDocumentReady && isSwiperLoaded) {
+            // Add a minimum delay if page just loaded
+            const minDelay = timeSinceLoad < 5000 ? 500 : 100;
+            setTimeout(() => {
+                console.log(`Initializing ${type} after ${minDelay}ms delay`);
+                initFunction();
+            }, minDelay);
+        } else {
+            // Try again in 100ms
+            setTimeout(checkReadiness, 100);
+        }
+    };
+    
+    checkReadiness();
+}
+
 // scroll to content on mobile
 function scrollToDynamicContentOnMobile() {
     if (isMobileDevice()) {
@@ -2072,6 +2104,7 @@ function displayCurrentTasteList() {
                 
                 // Check if mobile
                 const isMobile = window.innerWidth <= 768;
+                console.log('Album display - isMobile:', isMobile, 'width:', window.innerWidth);
                 
                 if (isMobile) {
                     // Mobile: create single grid container below the list
@@ -2083,12 +2116,17 @@ function displayCurrentTasteList() {
                     let mobileGrid = document.getElementById(mobileGridId);
                     
                     // Remove existing mobile grid
-                    if (mobileGrid) mobileGrid.remove();
+                    if (mobileGrid) {
+                        console.log('Removing existing mobile grid');
+                        mobileGrid.remove();
+                    }
                     
                     // Create new mobile grid after the items list
                     mobileGrid = document.createElement('div');
                     mobileGrid.id = mobileGridId;
                     mobileGrid.className = 'mobile-albums-grid';
+                    
+                    console.log('Creating mobile album grid with', albumsWithImages.length, 'albums');
                     
                     // Add all 10 albums to mobile grid
                     mobileGrid.innerHTML = albumsWithImages.slice(0, 10).map(album => 
@@ -2097,9 +2135,19 @@ function displayCurrentTasteList() {
                         </a>`
                     ).join('');
                     
-                    // Insert after the items container
+                    // Insert after the items container - try multiple insertion methods
                     const itemsContainer = itemsEl.parentElement;
-                    itemsContainer.appendChild(mobileGrid);
+                    console.log('Items container:', itemsContainer);
+                    
+                    // Try inserting after the taste-list-items container itself
+                    const tasteContent = document.querySelector('.taste-content');
+                    if (tasteContent) {
+                        console.log('Appending to taste-content container');
+                        tasteContent.appendChild(mobileGrid);
+                    } else {
+                        console.log('Appending to items parent container');
+                        itemsContainer.appendChild(mobileGrid);
+                    }
                 } else {
                     // Desktop: split albums for left and right sides (5 each)
                     const leftAlbums = albumsWithImages.slice(0, 5);
@@ -3082,8 +3130,8 @@ function showRecordCollection(container) {
             </div>
         </div>
     `;
-    // init records
-    setTimeout(() => initializeRecordCollection('dynamic-record-carousel'), 100);
+    // init records - wait for page readiness
+    waitForReadyThenInitialize(() => initializeRecordCollection('dynamic-record-carousel'), 'records');
 }
 
 function showShoeCollection(container) {
@@ -3098,8 +3146,8 @@ function showShoeCollection(container) {
             </div>
         </div>
     `;
-    // init shoes
-    setTimeout(() => initializeShoeCollection('dynamic-shoe-carousel'), 100);
+    // init shoes - wait for page readiness  
+    waitForReadyThenInitialize(() => initializeShoeCollection('dynamic-shoe-carousel'), 'shoes');
 }
 
 function showJerseyCollection(container) {
@@ -3114,8 +3162,8 @@ function showJerseyCollection(container) {
             </div>
         </div>
     `;
-    // init jerseys
-    setTimeout(() => initializeJerseyCollection('dynamic-jersey-carousel'), 100);
+    // init jerseys - wait for page readiness
+    waitForReadyThenInitialize(() => initializeJerseyCollection('dynamic-jersey-carousel'), 'jerseys');
 }
 
 function showCreativeWork(container, type) {
@@ -3460,6 +3508,9 @@ function initializeThemeToggle() {
 
 // Initial load - wait for everything to be ready
 document.addEventListener('DOMContentLoaded', () => {
+    // Track page load time for swiper initialization timing
+    window.pageLoadTime = Date.now();
+    
     // Initialize theme toggle first
     initializeThemeToggle();
     
