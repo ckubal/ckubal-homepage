@@ -1,0 +1,13 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Black circular background -->
+  <circle cx="32" cy="32" r="32" fill="#000000"/>
+  
+  <!-- ck text in site typography style, larger and touching edges -->
+  <text x="32" y="46" 
+        font-family="Helvetica Neue, Helvetica, Arial, sans-serif" 
+        font-size="38" 
+        font-weight="300" 
+        letter-spacing="-1.2px"
+        text-anchor="middle" 
+        fill="white">ck</text>
+</svg>
