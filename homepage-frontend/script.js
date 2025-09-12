@@ -1716,7 +1716,7 @@ function initializeDynamicContent() {
             } else if (target === 'investing') {
                 showInvestments(dynamicContent);
                 scrollToDynamicContentOnMobile();
-            } else if (target === 'builds' || target === 'music' || target === 'writing') {
+            } else if (target === 'builds' || target === 'music' || target === 'writing' || target === 'cirque-disobey') {
                 showCreativeWork(dynamicContent, target);
                 scrollToDynamicContentOnMobile();
             } else if (target === 'goat-rappers') {
@@ -3224,6 +3224,20 @@ function showCreativeWork(container, type) {
                 <div class="writing-image">
                     <a href="https://ckubal.substack.com/" target="_blank" rel="noopener">
                         <img src="assets/writing.webp" alt="Things I Think About" class="writing-brain-image" />
+                    </a>
+                </div>
+            </div>
+        `;
+    } else if (type === 'cirque-disobey') {
+        container.innerHTML = `
+            <div class="cirque-disobey-content">
+                <p class="play-category-description">nearly 300 cartoons paired with rap lyrics for comedic effect. created and sold physical copies with proceeds benefiting urban gateways. unedited parodies intended for mature audiences who appreciate both art and hip hop.</p>
+                
+                <p class="cirque-disobey-link">download free <a href="https://weirdlittleideas.com/img/objects/cirquedisobey/cirquedisobey_v2.pdf" target="_blank" rel="noopener" class="section-link">cirque disobey pdf</a></p>
+                
+                <div class="cirque-disobey-image">
+                    <a href="https://weirdlittleideas.com/img/objects/cirquedisobey/cirquedisobey_v2.pdf" target="_blank" rel="noopener">
+                        <img src="assets/cirque-disobey.png" alt="Cirque Disobey Book Cover" class="cirque-disobey-book" />
                     </a>
                 </div>
             </div>

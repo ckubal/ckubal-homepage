@@ -1481,6 +1481,41 @@ button.nav-arrow,
     opacity: 0.8;
 }
 
+/* Cirque Disobey Section */
+.cirque-disobey-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 500px;
+}
+
+.cirque-disobey-description {
+    font-size: 1.3rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.cirque-disobey-link {
+    font-size: 1.3rem;
+    margin: 0;
+}
+
+.cirque-disobey-image {
+    margin-top: 8px;
+}
+
+.cirque-disobey-book {
+    width: 100%;
+    max-width: 300px;
+    height: auto;
+    border-radius: 8px;
+    transition: transform 0.3s ease;
+}
+
+.cirque-disobey-book:hover {
+    transform: scale(1.02);
+}
+
 
 /* Taste Section */
 .taste-subcategory {
@@ -2552,7 +2587,7 @@ button.nav-arrow,
         width: 120px !important;
     }
     
-    .weird-ideas-content, .wait-what-content, .writing-content {
+    .weird-ideas-content, .wait-what-content, .writing-content, .cirque-disobey-content {
         text-align: center;
     }
     
@@ -2561,7 +2596,7 @@ button.nav-arrow,
         line-height: 1.4;
     }
     
-    .weird-ideas-image, .wait-what-album, .writing-brain-image {
+    .weird-ideas-image, .wait-what-album, .writing-brain-image, .cirque-disobey-book {
         max-width: 280px;
         margin: 0 auto;
     }
