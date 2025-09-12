@@ -53,6 +53,7 @@ function getWorkoutDescription(activityData) {
     }
     
     const activity = activityData.activity.toLowerCase();
+    const activityType = activityData.type ? activityData.type.toLowerCase() : '';
     const distance = activityData.distance;
     const duration = activityData.duration;
     const timeAgo = getWorkoutTimeAgo(activityData.date);
@@ -84,7 +85,25 @@ function getWorkoutDescription(activityData) {
         }
     }
     
-    if (activity.includes('run') || activity.includes('jog')) {
+    // prioritize strava activity type if available
+    if (activityType === 'weighttraining') {
+        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
+        workoutType = `${durationWithMin} weightlifting session`;
+    } else if (activityType === 'run') {
+        workoutType = `${formattedDistance} run`;
+    } else if (activityType === 'ride' || activityType === 'cycling') {
+        workoutType = `${formattedDistance} bike ride`;
+    } else if (activityType === 'walk') {
+        workoutType = `${formattedDistance} walk`;
+    } else if (activityType === 'hike') {
+        workoutType = `${formattedDistance} hike`;
+    } else if (activityType === 'swim') {
+        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
+        workoutType = `${durationWithMin} swim`;
+    } else if (activityType === 'yoga') {
+        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
+        workoutType = `${durationWithMin} yoga session`;
+    } else if (activity.includes('run') || activity.includes('jog')) {
         workoutType = `${formattedDistance} run`;
     } else if (activity.includes('ride') || activity.includes('bike') || activity.includes('cycling')) {
         workoutType = `${formattedDistance} bike ride`;
@@ -97,7 +116,7 @@ function getWorkoutDescription(activityData) {
     } else if (activity.includes('tonal')) {
         const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
         workoutType = `${durationWithMin} tonal session`;
-    } else if (activity.includes('lift') || activity.includes('strength')) {
+    } else if (activity.includes('lift') || activity.includes('strength') || activity.includes('weight training') || activity.includes('weightlifting') || activity.includes('weight')) {
         const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
         workoutType = `${durationWithMin} weightlifting session`;
     } else if (activity.includes('walk')) {
