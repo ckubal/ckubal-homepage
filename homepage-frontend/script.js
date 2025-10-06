@@ -1856,6 +1856,8 @@ function showWorkExperience(container, showSelection = true) {
 function showInvestments(container, showSelection = false) {
     container.innerHTML = `
         <div class="investment-names-row">
+            <span class="investment-name-inline clickable" data-target="bloom-wolf">bloom & wolf</span>
+            <span class="separator">|</span>
             <span class="investment-name-inline clickable" data-target="vibrant">vibrant</span>
             <span class="separator">|</span>
             <span class="investment-name-inline clickable" data-target="healthtap">healthtap</span>
@@ -1898,6 +1900,10 @@ function showInvestments(container, showSelection = false) {
         <!-- Combined details container for both main investments and syndicates -->
         <div class="investment-details-container" style="margin-top: 30px;">
             <!-- Main Investment Details -->
+            <div class="investment-detail-item" id="detail-bloom-wolf">
+                <p class="investment-url"><a href="https://www.bloomandwolf.com/en" target="_blank" rel="noopener" class="external-link">bloomandwolf.com</a></p>
+                <p>premium silk flower service disrupting the $35 billion fresh flower industry with beautiful, sustainable alternatives. creates ultra-realistic floral arrangements that help b2b and d2c customers maintain beautiful spaces with less effort, lower cost, and significantly reduced environmental impact. leading the shift from perishable to permanent while delivering the same emotional experience.</p>
+            </div>
             <div class="investment-detail-item" id="detail-vibrant">
                 <p class="investment-url"><a href="https://www.vibrantpractice.com/" target="_blank" rel="noopener" class="external-link">vibrantpractice.com</a></p>
                 <p>ai-native operating system built for functional, integrative, and longevity medicine practitioners moving beyond symptom management to root-cause care. designed to help modern clinicians work faster, think deeper, and deliver precision medicine tailored to unique biology and lifestyle without drowning in outdated systems.</p>
