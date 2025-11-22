@@ -47,6 +47,122 @@ function mapSleepStatus(status, performance) {
     return statusMap[status] || 'slept okay';
 }
 
+function getIndoorCyclingDescription(activityData, duration, formattedDistance) {
+    const activity = activityData.activity.toLowerCase();
+    const activityName = activityData.activity;
+    
+    // Helper function to extract instructor name
+    function extractInstructor(name) {
+        // Pattern: "CLASS NAME with INSTRUCTOR"
+        const withMatch = name.match(/\bwith\s+([a-zA-Z]+)/i);
+        if (withMatch) {
+            return withMatch[1].toLowerCase();
+        }
+        
+        // Pattern: "INSTRUCTOR's CLASS" or just instructor name at end
+        const possessiveMatch = name.match(/\b([a-zA-Z]+)'s\b/i);
+        if (possessiveMatch) {
+            return possessiveMatch[1].toLowerCase();
+        }
+        
+        // For SoulCycle: instructor name often appears after class type
+        const soulCycleMatch = name.match(/\b(?:with\s+)?([a-zA-Z]+)$/i);
+        if (activity.includes('soulcycle') && soulCycleMatch) {
+            return soulCycleMatch[1].toLowerCase();
+        }
+        
+        return null;
+    }
+    
+    // Helper function to extract class type/theme  
+    function extractClassType(name) {
+        const original = name.trim();
+        
+        // Remove instructor pattern and clean up
+        let cleaned = original.replace(/\bwith\s+[a-zA-Z]+$/i, '').trim();
+        
+        // For SoulCycle patterns like "FEEL GOOD FRIDAY with Zapporah"
+        if (cleaned.toLowerCase().includes('feel good friday')) {
+            return 'feel good friday';
+        }
+        
+        // For Peloton patterns like "Hip Hop Ride" or "Pop Ride"
+        if (cleaned.toLowerCase().includes('hip hop')) {
+            return 'hip hop ride';
+        }
+        if (cleaned.toLowerCase().includes('pop ride')) {
+            return 'pop ride';
+        }
+        if (cleaned.toLowerCase().includes('climb ride')) {
+            return 'climb ride';
+        }
+        if (cleaned.toLowerCase().includes('intervals')) {
+            return 'intervals ride';
+        }
+        
+        // Generic patterns
+        if (cleaned.toLowerCase().includes('ride')) {
+            return cleaned.toLowerCase();
+        }
+        
+        return cleaned.toLowerCase();
+    }
+    
+    // Detect if it's indoor cycling (vs outdoor bike ride)
+    const isIndoor = activity.includes('soulcycle') || 
+                    activity.includes('peloton') || 
+                    activity.includes('spin') ||
+                    parseFloat(formattedDistance) > 15; // Unrealistic distance suggests indoor/estimated
+    
+    if (!isIndoor) {
+        // Outdoor bike ride
+        return `${formattedDistance} bike ride`;
+    }
+    
+    // Indoor cycling class
+    const instructor = extractInstructor(activityName);
+    const classType = extractClassType(activityName);
+    
+    // Build description based on platform
+    if (activity.includes('soulcycle')) {
+        if (instructor && classType) {
+            return `${duration} ${classType} soulcycle class with ${instructor}`;
+        } else if (instructor) {
+            return `${duration} soulcycle class with ${instructor}`;
+        } else if (classType) {
+            return `${duration} ${classType} soulcycle class`;
+        } else {
+            return `${duration} soulcycle class`;
+        }
+    } else if (activity.includes('peloton')) {
+        let description = `${duration} peloton`;
+        
+        if (classType) {
+            description = `${duration} peloton ${classType}`;
+        }
+        
+        if (instructor) {
+            description += ` with ${instructor}`;
+        }
+        
+        // Add kJ output if available
+        if (activityData.kilojoules) {
+            description += ` with ${Math.round(activityData.kilojoules)}kJ output`;
+        }
+        
+        return description;
+    } else {
+        // Generic indoor cycling
+        if (instructor && classType) {
+            return `${duration} ${classType} with ${instructor}`;
+        } else if (instructor) {
+            return `${duration} spin class with ${instructor}`;
+        } else {
+            return `${duration} indoor cycling class`;
+        }
+    }
+}
+
 function getWorkoutDescription(activityData) {
     if (!activityData || !activityData.activity || !activityData.date) {
         return null;
@@ -92,7 +208,8 @@ function getWorkoutDescription(activityData) {
     } else if (activityType === 'run') {
         workoutType = `${formattedDistance} run`;
     } else if (activityType === 'ride' || activityType === 'cycling') {
-        workoutType = `${formattedDistance} bike ride`;
+        // Enhanced logic for indoor cycling classes
+        workoutType = getIndoorCyclingDescription(activityData, duration, formattedDistance);
     } else if (activityType === 'walk') {
         workoutType = `${formattedDistance} walk`;
     } else if (activityType === 'hike') {
@@ -103,16 +220,15 @@ function getWorkoutDescription(activityData) {
     } else if (activityType === 'yoga') {
         const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
         workoutType = `${durationWithMin} yoga session`;
+    } else if (activityType === 'pilates') {
+        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
+        workoutType = `${durationWithMin} pilates session`;
     } else if (activity.includes('run') || activity.includes('jog')) {
         workoutType = `${formattedDistance} run`;
-    } else if (activity.includes('ride') || activity.includes('bike') || activity.includes('cycling')) {
-        workoutType = `${formattedDistance} bike ride`;
-    } else if (activity.includes('soulcycle') || activity.includes('spin')) {
-        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
-        workoutType = `${durationWithMin} soulcycle class`;
-    } else if (activity.includes('peloton')) {
-        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
-        workoutType = `${durationWithMin} peloton`;
+    } else if (activity.includes('ride') || activity.includes('bike') || activity.includes('cycling') || 
+               activity.includes('soulcycle') || activity.includes('spin') || activity.includes('peloton')) {
+        // Enhanced logic for indoor cycling classes (fallback when type isn't set)
+        workoutType = getIndoorCyclingDescription(activityData, duration, formattedDistance);
     } else if (activity.includes('tonal')) {
         const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
         workoutType = `${durationWithMin} tonal session`;
@@ -126,6 +242,9 @@ function getWorkoutDescription(activityData) {
     } else if (activity.includes('yoga')) {
         const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
         workoutType = `${durationWithMin} yoga session`;
+    } else if (activity.includes('pilates')) {
+        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
+        workoutType = `${durationWithMin} pilates session`;
     } else if (activity.includes('swim')) {
         // use duration for swims since strava distance is often wrong
         const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
@@ -226,14 +345,7 @@ function generateNarrative(data) {
     if (activityData) {
         const workoutDesc = getWorkoutDescription(activityData);
         if (workoutDesc) {
-            // Add workout frequency if available
-            if (activityData.stats && activityData.stats.workoutDaysLast30) {
-                const workoutDays = activityData.stats.workoutDaysLast30;
-                const workoutDescWithStats = workoutDesc.replace(' a couple days ago', ` a couple days ago and i've worked out ${workoutDays} of the last 30 days`);
-                narrative += `${workoutDescWithStats}.`;
-            } else {
-                narrative += `${workoutDesc}.`;
-            }
+            narrative += `${workoutDesc}.`;
         }
     }
     
@@ -1856,6 +1968,10 @@ function showWorkExperience(container, showSelection = true) {
 function showInvestments(container, showSelection = false) {
     container.innerHTML = `
         <div class="investment-names-row">
+            <span class="investment-name-inline clickable" data-target="alma">alma</span>
+            <span class="separator">|</span>
+            <span class="investment-name-inline clickable" data-target="deel">deel</span>
+            <span class="separator">|</span>
             <span class="investment-name-inline clickable" data-target="bloom-wolf">bloom & wolf</span>
             <span class="separator">|</span>
             <span class="investment-name-inline clickable" data-target="vibrant">vibrant</span>
@@ -1863,10 +1979,10 @@ function showInvestments(container, showSelection = false) {
             <span class="investment-name-inline clickable" data-target="healthtap">healthtap</span>
             <span class="separator">|</span>
             <span class="investment-name-inline clickable" data-target="boam">boam ai</span>
-            <span class="separator">|</span>
-            <span class="investment-name-inline clickable" data-target="pixaera">pixaera</span>
         </div>
         <div class="investment-names-row">
+            <span class="investment-name-inline clickable" data-target="pixaera">pixaera</span>
+            <span class="separator">|</span>
             <span class="investment-name-inline clickable" data-target="upwage">upwage</span>
             <span class="separator">|</span>
             <span class="investment-name-inline clickable" data-target="copper">copper</span>
@@ -1900,6 +2016,10 @@ function showInvestments(container, showSelection = false) {
         <!-- Combined details container for both main investments and syndicates -->
         <div class="investment-details-container" style="margin-top: 30px;">
             <!-- Main Investment Details -->
+            <div class="investment-detail-item" id="detail-alma">
+                <p class="investment-url"><a href="https://www.tryalma.com/" target="_blank" rel="noopener" class="external-link">tryalma.com</a></p>
+                <p>ai-powered legal tech platform simplifying the visa process for technologists, founders, and researchers. automates document processing and provides personal legal advisors to fast-track international talent into america's tech ecosystem with higher approval rates.</p>
+            </div>
             <div class="investment-detail-item" id="detail-bloom-wolf">
                 <p class="investment-url"><a href="https://www.bloomandwolf.com/en" target="_blank" rel="noopener" class="external-link">bloomandwolf.com</a></p>
                 <p>premium silk flower service disrupting the $35 billion fresh flower industry with beautiful, sustainable alternatives. creates ultra-realistic floral arrangements that help b2b and d2c customers maintain beautiful spaces with less effort, lower cost, and significantly reduced environmental impact. leading the shift from perishable to permanent while delivering the same emotional experience.</p>
@@ -1919,6 +2039,10 @@ function showInvestments(container, showSelection = false) {
             <div class="investment-detail-item" id="detail-pixaera">
                 <p class="investment-url"><a href="https://www.pixaera.com/" target="_blank" rel="noopener" class="external-link">pixaera.com</a></p>
                 <p>holistic safety training platform empowering frontline workers through engaging, immersive experiences. integrates virtual reality, pc simulations, and traditional classroom methods to enhance knowledge retention and promote proactive safety culture.</p>
+            </div>
+            <div class="investment-detail-item" id="detail-deel">
+                <p class="investment-url"><a href="https://www.deel.com/" target="_blank" rel="noopener" class="external-link">deel.com</a></p>
+                <p>all-in-one platform for global workforces, enabling instant hiring across 150+ countries without local entities. handles contracts, payroll, and compliance automatically while eliminating traditional barriers to international talent. transforming how companies access and manage distributed teams worldwide.</p>
             </div>
             <div class="investment-detail-item" id="detail-upwage">
                 <p class="investment-url"><a href="https://www.upwage.com/" target="_blank" rel="noopener" class="external-link">upwage.com</a></p>

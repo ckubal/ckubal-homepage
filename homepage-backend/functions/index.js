@@ -1338,12 +1338,34 @@ async function getStravaDataDirect() {
             const durationMinutes = Math.floor(activity.moving_time / 60);
             if (durationMinutes >= 10) {
                 functions.logger.info(`Found activity: ${activity.name}, ${durationMinutes}m`);
+
+                // Get detailed activity data for kilojoules and other power metrics
+                let detailedActivity = null;
+                try {
+                    const detailResponse = await axios.get(
+                        `https://www.strava.com/api/v3/activities/${activity.id}`,
+                        {
+                            headers: { "Authorization": `Bearer ${accessToken}` },
+                        },
+                    );
+                    detailedActivity = detailResponse.data;
+                    const kj = detailedActivity.kilojoules || "N/A";
+                    functions.logger.info(`Got detailed activity data with kilojoules: ${kj}`);
+                } catch (detailError) {
+                    functions.logger.warn(`Failed to get detailed activity data: ${detailError.message}`);
+                }
+
                 return {
                     activity: activity.name,
                     type: activity.type,
                     distance: `${(activity.distance / 1000).toFixed(1)}km`,
                     duration: `${durationMinutes}m`,
                     date: activity.start_date,
+                    // Add detailed metrics if available
+                    kilojoules: detailedActivity?.kilojoules || null,
+                    average_watts: detailedActivity?.average_watts || null,
+                    weighted_average_watts: detailedActivity?.weighted_average_watts || null,
+                    device_watts: detailedActivity?.device_watts || null,
                     fetchedAt: new Date(),
                 };
             }
