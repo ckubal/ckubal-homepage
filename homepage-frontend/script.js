@@ -109,10 +109,14 @@ function getIndoorCyclingDescription(activityData, duration, formattedDistance) 
     }
     
     // Detect if it's indoor cycling (vs outdoor bike ride)
+    const hasInstructorPattern = /\bwith\s+[a-zA-Z]+/i.test(activityName);
+    const hasClassTypePattern = /\b(feel good|hip hop|pop|climb|intervals|spin|class)\b/i.test(activity);
+    
     const isIndoor = activity.includes('soulcycle') || 
                     activity.includes('peloton') || 
                     activity.includes('spin') ||
-                    parseFloat(formattedDistance) > 15; // Unrealistic distance suggests indoor/estimated
+                    parseFloat(formattedDistance) > 15 || // Unrealistic distance suggests indoor/estimated
+                    (hasInstructorPattern && hasClassTypePattern); // Class with instructor = indoor
     
     if (!isIndoor) {
         // Outdoor bike ride
@@ -124,7 +128,10 @@ function getIndoorCyclingDescription(activityData, duration, formattedDistance) 
     const classType = extractClassType(activityName);
     
     // Build description based on platform
-    if (activity.includes('soulcycle')) {
+    const isSoulCycle = activity.includes('soulcycle') || 
+                       (activity.includes('feel good friday') && hasInstructorPattern);
+    
+    if (isSoulCycle) {
         if (instructor && classType) {
             return `${duration} ${classType} soulcycle class with ${instructor}`;
         } else if (instructor) {
