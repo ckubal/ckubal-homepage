@@ -23,13 +23,16 @@ Building a live personal homepage that displays dynamic data about Charlie's cur
 
 ## Current Status ✅ READY FOR DEPLOYMENT
 
-### 🆕 LATEST SESSION ACHIEVEMENTS (November 22, 2024)
+### 🆕 LATEST SESSION ACHIEVEMENTS (November 22, 2024) ✅ DEPLOYED LIVE
 - **Enhanced Workout Descriptions**: Dramatically improved activity parsing for indoor cycling classes and Pilates
 - **Detailed Strava Integration**: Backend now fetches detailed activity data including kilojoules for power metrics
 - **Smart Activity Detection**: Intelligent parsing distinguishes indoor vs outdoor cycling, extracts instructor names and class types
+- **Fixed SoulCycle Recognition**: Resolved detection logic to properly identify "Feel Good Friday" classes without explicit "soulcycle" keyword
+- **Pattern-Based Indoor Detection**: Classes with instructor patterns + class types automatically detected as indoor cycling
 - **Pilates Support**: Added proper duration-only formatting for Pilates activities (like weightlifting/yoga)
 - **Peloton kJ Display**: Shows power output when available for enhanced workout context
-- **File Version Updates**: Updated to 20241122b for cache busting
+- **Successfully Deployed**: All files uploaded to charliekubal.com and working live
+- **File Version Updates**: Updated to 20241122d for cache busting
 
 ### Previous Session Achievements (September 8, 2025)
 - **Mobile Album Grid Fix**: Fixed favorite albums displaying to the right of text instead of below on mobile
@@ -53,10 +56,10 @@ Building a live personal homepage that displays dynamic data about Charlie's cur
 - **Responsive Design**: Optimized for desktop (coverflow effect) and mobile (centered single slides)
 - **Theme Toggle**: Circle icon switches between light/dark mode
 
-## Files Ready for Upload
-Upload these files to charliekubal.com via Hostinger:
+## Files Successfully Deployed ✅ LIVE
+Successfully uploaded to charliekubal.com via Hostinger:
 - **`index.html`** (v=20241122a) - Updated file versions for cache busting
-- **`script.js`** (v=20241122b) - Enhanced workout descriptions with intelligent activity parsing
+- **`script.js`** (v=20241122d) - Enhanced workout descriptions with working indoor cycling detection
 - **`styles.css`** (v=20241122a) - Updated file version for cache busting
 - **`assets/favicon.svg`** - Custom "ck" monogram favicon (vector)
 - **`assets/favicon-16x16.png`** - 16x16 favicon for browser tabs
@@ -105,28 +108,34 @@ curl https://us-central1-ckubal-homepage-be.cloudfunctions.net/getSiteData
 - NEVER include "Co-Authored-By: Claude" attributions
 - Keep commit messages clean and professional
 
-## Enhanced Workout Activity Parsing
+## Enhanced Workout Activity Parsing ✅ WORKING LIVE
 
-### New Intelligent Activity Detection
+### Intelligent Activity Detection - Successfully Implemented
 The system now intelligently parses workout activities with enhanced logic for indoor cycling classes and Pilates:
 
-**SoulCycle Classes:**
+**SoulCycle Classes:** ✅ **Working**
 - Input: `"FEEL GOOD FRIDAY with Zapporah"`
 - Output: `"my last workout was a 45m feel good friday soulcycle class with zapporah yesterday"`
 
-**Peloton Classes (with kJ data):**
+**Peloton Classes (with kJ data):** ✅ **Ready**
 - Input: `"Hip Hop Ride with Alex Toussaint"` + `kilojoules: 523`
 - Output: `"my last workout was a 45m peloton hip hop ride with alex toussaint with 523kJ output yesterday"`
 
-**Pilates Sessions:**
+**Pilates Sessions:** ✅ **Working**
 - Input: `"Pilates class"` or `activityType: "Pilates"`
 - Output: `"my last workout was a 60 min pilates session yesterday"`
 
-### Technical Implementation
-- **Backend**: Enhanced Strava API calls to fetch detailed activity data including power metrics
-- **Frontend**: Smart parsing extracts instructor names, class types, and distinguishes indoor vs outdoor activities
-- **Duration-Only Activities**: Pilates follows weightlifting/yoga pattern (no distance display)
-- **Graceful Fallback**: Works with both direct Strava API and RunMusic endpoint data
+### Technical Implementation - Deployed Live
+- **Backend**: Enhanced Strava API calls to fetch detailed activity data including power metrics ✅
+- **Frontend**: Smart parsing extracts instructor names, class types, and distinguishes indoor vs outdoor activities ✅
+- **Pattern-Based Detection**: Classes with instructor patterns + class types automatically detected as indoor ✅
+- **Duration-Only Activities**: Pilates follows weightlifting/yoga pattern (no distance display) ✅
+- **Graceful Fallback**: Works with both direct Strava API and RunMusic endpoint data ✅
+
+### Key Fixes Applied
+- **Enhanced Indoor Detection Logic**: Added instructor (`with [Name]`) and class type patterns (`feel good`, `hip hop`, etc.)
+- **SoulCycle Recognition Fix**: "Feel Good Friday" classes properly identified without requiring explicit "soulcycle" keyword
+- **Pattern Matching**: Classes combining instructor names with class types automatically classified as indoor cycling
 
 ## Example Narrative Output
 > "I'm currently in **San Francisco** where it's **67°** and **sunny**. I **slept pretty well** last night and I'm up to **2,275 steps** today. I **went for a 45m feel good friday soulcycle class with zapporah recently**. My current jam is **No Broke Boys by Disco Lines** and I'm currently reading **Playland by Andrew Carlin**."
