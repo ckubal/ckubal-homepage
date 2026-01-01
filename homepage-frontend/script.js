@@ -190,21 +190,48 @@ function getWorkoutDescription(activityData) {
     const distanceUnit = distance.replace(/[\d.]/g, '').trim();
     const formattedDistance = distanceUnit === 'miles' ? `${distanceValue} mile` : distance;
     
-    // grab location if its there
+    // check if this is a zero-distance activity (should be duration-only)
+    const isZeroDistance = distanceValue === 0 || isNaN(distanceValue);
+    
+    // get location from Strava's actual location data instead of parsing activity title
     let locationText = '';
     
-    // check for "in [location]" pattern
-    const inMatch = activity.match(/\bin\s+(\w+)/);
-    if (inMatch) {
-        locationText = ` in ${inMatch[1]}`;
+    const city = activityData.location_city || '';
+    const state = activityData.location_state || '';
+    const country = activityData.location_country || '';
+    
+    // check if this is in SF/Bay Area (home area - show neighborhood detail)
+    const isSFBayArea = city.toLowerCase().includes('san francisco') || 
+                        city.toLowerCase().includes('sf') ||
+                        (state.toLowerCase() === 'california' && city.toLowerCase() === 'san francisco');
+    
+    if (isSFBayArea) {
+        // for SF/Bay Area, try to parse neighborhood from activity title for detail
+        const inMatch = activity.match(/\bin\s+(\w+)/);
+        if (inMatch) {
+            locationText = ` in ${inMatch[1]}`;
+        } else {
+            // fallback to city for SF area
+            locationText = ` in sf`;
+        }
     } else {
-        // look for location names
-        const locationNames = ['mammoth', 'tahoe', 'sf', 'san francisco', 'la', 'los angeles', 'nyc', 'new york', 'brooklyn', 'manhattan'];
-        for (const location of locationNames) {
-            if (activity.includes(location)) {
-                locationText = ` in ${location}`;
-                break;
-            }
+        // for travel: use Strava's location fields (city/state/country)
+        if (city && state && country === 'United States') {
+            locationText = ` in ${city.toLowerCase()}`;
+        } else if (city && country !== 'United States') {
+            locationText = ` in ${city.toLowerCase()}, ${country.toLowerCase()}`;
+        } else if (state && country === 'United States') {
+            locationText = ` in ${state.toLowerCase()}`;
+        } else if (country && country !== 'United States') {
+            locationText = ` in ${country.toLowerCase()}`;
+        }
+    }
+    
+    // ultimate fallback: check for "in [location]" pattern in activity title
+    if (!locationText) {
+        const inMatch = activity.match(/\bin\s+(\w+)/);
+        if (inMatch) {
+            locationText = ` in ${inMatch[1]}`;
         }
     }
     
@@ -230,6 +257,19 @@ function getWorkoutDescription(activityData) {
     } else if (activityType === 'pilates') {
         const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
         workoutType = `${durationWithMin} pilates session`;
+    } else if (activityType === 'workout' && isZeroDistance) {
+        // Generic workout type with zero distance - use activity name and duration
+        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
+        if (activity.includes('pickleball')) {
+            workoutType = `${durationWithMin} pickleball session`;
+        } else {
+            // Generic workout session
+            workoutType = `${durationWithMin} workout session`;
+        }
+    } else if (isZeroDistance) {
+        // Any zero-distance activity should be duration-only
+        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
+        workoutType = `${durationWithMin} ${activityType || 'workout'} session`;
     } else if (activity.includes('run') || activity.includes('jog')) {
         workoutType = `${formattedDistance} run`;
     } else if (activity.includes('ride') || activity.includes('bike') || activity.includes('cycling') || 
@@ -252,12 +292,22 @@ function getWorkoutDescription(activityData) {
     } else if (activity.includes('pilates')) {
         const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
         workoutType = `${durationWithMin} pilates session`;
+    } else if (activity.includes('pickleball')) {
+        const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
+        workoutType = `${durationWithMin} pickleball session`;
     } else if (activity.includes('swim')) {
         // use duration for swims since strava distance is often wrong
         const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
         workoutType = `${durationWithMin} swim`;
     } else {
-        workoutType = `${formattedDistance} ${activity}`;
+        if (isZeroDistance) {
+            // Zero-distance fallback - use duration only
+            const durationWithMin = duration.replace(/(\d+)m/, '$1 min');
+            workoutType = `${durationWithMin} ${activity}`;
+        } else {
+            // Normal distance-based activity
+            workoutType = `${formattedDistance} ${activity}`;
+        }
     }
     
     return `my last workout was a ${workoutType}${locationText} ${timeAgo}`;
@@ -268,12 +318,18 @@ function getWorkoutTimeAgo(activityDate) {
     
     const activityTime = new Date(activityDate);
     const now = new Date();
-    const diffMs = now - activityTime;
+    
+    // Compare local dates (not UTC times) to handle timezone properly
+    const activityLocalDate = new Date(activityTime.getFullYear(), activityTime.getMonth(), activityTime.getDate());
+    const nowLocalDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    const diffMs = nowLocalDate - activityLocalDate;
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     
     if (diffDays === 0) {
-        if (diffHours < 6) {
+        // Same local date - check if it's recent
+        const timeDiffHours = Math.floor((now - activityTime) / (1000 * 60 * 60));
+        if (timeDiffHours < 6) {
             return 'earlier today';
         } else {
             return 'today';
@@ -2455,7 +2511,7 @@ function showFavoriteMusic(container) {
         const playlists = window.siteData.musicPlaylists.value || window.siteData.musicPlaylists;
         
         // Create ordered list of years for navigation
-        playlistYears = ['current', 'all-time', '2024', '2023', '2022', '2021', '2020', '2019', '2018', '2017', '2016', '2015'];
+        playlistYears = ['current', 'all-time', '2025', '2024', '2023', '2022', '2021', '2020', '2019', '2018', '2017', '2016', '2015'];
         availablePlaylists = playlistYears.filter(year => {
             const playlist = playlists[year];
             // tracks are nested in the response
@@ -2666,7 +2722,13 @@ function showFavoriteReads(container) {
 
         // Build navigation items for annual lists + this year
         const thisYearReadsData = window.siteData?.thisYearReads?.value || window.siteData?.thisYearReads;
+        console.log('DEBUG: annualLists data:', annualLists);
+        console.log('DEBUG: annualLists length:', annualLists.length);
+        console.log('DEBUG: All years in annualLists:', annualLists.map(list => ({ year: list.year, type: list.type, title: list.title, itemsCount: list.items?.length || 0 })));
         const uniqueYears = [...new Set(annualLists.map(list => list.year))].sort((a, b) => b - a);
+        console.log('DEBUG: uniqueYears extracted:', uniqueYears);
+        console.log('DEBUG: Does 2025 exist in uniqueYears?', uniqueYears.includes(2025));
+        console.log('DEBUG: Does "2025" (string) exist in uniqueYears?', uniqueYears.includes("2025"));
         
         // Create navigation items starting with "this year" if we have thisYearReads data
         let navItems = [];
@@ -2674,9 +2736,8 @@ function showFavoriteReads(container) {
             navItems.push(`<span class="reads-nav-item ${currentReadList === 'thisYear' ? 'active' : 'inactive'}" data-list="thisYear">this year</span>`);
         }
         
-        // Add regular annual navigation items (excluding 2025 since we're showing "this year" instead)
+        // Add regular annual navigation items (including 2025)
         const yearNavItems = uniqueYears
-            .filter(year => year !== 2025) // Exclude 2025, use "this year" instead
             .map(year => `<span class="reads-nav-item ${currentReadList === `annual-${year}` ? 'active' : 'inactive'}" data-list="annual-${year}">${year}</span>`);
         
         navItems = navItems.concat(yearNavItems);

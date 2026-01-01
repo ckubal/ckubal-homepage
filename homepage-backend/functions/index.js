@@ -262,6 +262,11 @@ async function getBookData() {
         }
 
         // Look for "In progress" in column N (index 13) starting from row 25 (index 24)
+        // Currently reading pulls from: Recents sheet (GID 1869146893)
+        // - Column N (index 13) = Status (look for "In progress")
+        // - Column K (index 10) = Title
+        // - Column L (index 11) = Author
+        // - Starting from row 25 (0-indexed = 24)
         let currentBook = null;
 
         // Start from row 25 (0-indexed = 24) and go up to row 500 or end of data
@@ -552,10 +557,10 @@ async function searchSpotifyAlbum(albumText) {
 }
 
 async function getThisYearReads() {
-    functions.logger.info("Fetching this year reads from recents tab I24:N90 range...");
+    functions.logger.info("Fetching this year reads from 2026 sheet I24:N90 range...");
 
-    // Use "recents" sheet GID for "this year" data
-    const gid = "1869146893";
+    // Use 2026 sheet GID for "this year" data
+    const gid = "393005093";
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/" +
         "2PACX-1vQjPR6atSEfc5ItyFLmzEzabJeXG_Tit6_Bbmwu31_JptS4trGGtDR0zla6Q99yNtK9j9VS3VVsf5Ug/" +
         `pub?gid=${gid}&single=true&output=csv`;
@@ -571,7 +576,8 @@ async function getThisYearReads() {
         const monthNames = ["january", "february", "march", "april", "may", "june",
             "july", "august", "september", "october", "november", "december"];
 
-        // Process rows 24-90 (I24:N90 range) for recents tab
+        // Process rows 24-90 (I24:N90 range) for 2026 sheet
+        // Column mapping: I=month (index 8), K=title (index 10), L=author (index 11), N=status (index 13)
         let debugCount = 0;
 
         // Debug: Log the first few rows to understand the structure
@@ -659,13 +665,22 @@ async function getThisYearReads() {
 async function getAnnualReadingLists() {
     functions.logger.info("Fetching annual reading lists from published Google Sheets...");
 
-    // Now that document is published, we can access individual sheets by GID
+    // Annual Reading Lists pull from individual year sheets by GID
+    // NOTE: To find a sheet's GID, open the sheet in Google Sheets and check the URL:
+    // The GID is the number after #gid= in the URL
+    //
+    // Sheet structures:
+    // - 2025: A=year, B=month, C=rating, D=title, E=author, G=genre (fiction/non-fiction)
+    // - 2024: B=month, C=rating, D=title, E=author, G=genre (fiction/non-fiction)
+    // - 2023: A=month, B=rating, C=title, D=author, F=genre (fiction/non-fiction)
+    // - 2022: A=rating, B=title, C=author, E=genre (fiction/non-fiction)
+    // - 2021: A=title, B=author, C=genre (fiction/non-fiction), D=rating
     const yearSheets = {
+        2025: "2110174287",
         2024: "82205515",
         2023: "1354905140",
         2022: "0",
         2021: "1481213422",
-        // Removed 2025 since it's now handled by getThisYearReads()
     };
 
     const allYearLists = [];
@@ -701,17 +716,25 @@ async function getAnnualReadingLists() {
                     let author;
                     let genre;
                     if (year === "2025") {
-                        // 2025 structure: A=year, B=month, C=rating, D=title, E=author, G=genre
+                        // 2025 structure: A=year (may be present), B=month, C=rating, D=title, E=author, G=genre
+                        // Skip header rows (like "Fiction" in column D)
                         const yearCol = columns[0] ? columns[0].trim() : "";
+                        const titleCol = columns[3] ? columns[3].trim() : "";
+
+                        // Skip if it's a header row (like "Fiction" in title column) or empty
+                        if (!titleCol || titleCol.toLowerCase() === "fiction" ||
+                            titleCol.toLowerCase() === "non-fiction") {
+                            continue;
+                        }
+
+                        // Use columns B, C, D, E, G (indices 1, 2, 3, 4, 6)
                         month = columns[1] ? parseInt(columns[1]) : null;
                         rating = columns[2] ? columns[2].trim() : "";
-                        title = columns[3] ? columns[3].trim() : "";
+                        title = titleCol;
                         author = columns[4] ? columns[4].trim() : "";
                         genre = columns[6] ? columns[6].trim() : "";
-                        // Skip if not a valid year row for 2025
-                        if (!yearCol || isNaN(parseInt(yearCol))) continue;
                     } else if (year === "2024") {
-                        // 2024 structure: B=month, C=rating, D=title, E=author, G=F/NF
+                        // 2024 structure: B=month, C=rating, D=title, E=author, G=genre
                         month = columns[1] ? parseInt(columns[1]) : null;
                         rating = columns[2] ? columns[2].trim() : "";
                         title = columns[3] ? columns[3].trim() : "";
@@ -763,6 +786,7 @@ async function getAnnualReadingLists() {
                 }
 
                 // Group into fiction/nonfiction
+                // Normalize genre values: handle "F"/"NF", "fiction"/"non-fiction", "fiction"/"nonfiction", etc.
                 booksWithMonth.forEach((book) => {
                     const bookData = {
                         title: book.title,
@@ -770,15 +794,40 @@ async function getAnnualReadingLists() {
                         rating: book.rating,
                     };
 
-                    if (book.genre === "fiction") {
+                    const normalizedGenre = book.genre.toLowerCase().trim();
+                    // Handle various genre formats: "f", "fiction", "non-fiction", "nonfiction", "nf", etc.
+                    if (normalizedGenre === "fiction" || normalizedGenre === "f") {
                         fictionBooks.push(bookData);
-                    } else if (book.genre === "non-fiction") {
+                    } else if (normalizedGenre === "non-fiction" ||
+                               normalizedGenre === "nonfiction" ||
+                               normalizedGenre === "nf" ||
+                               (normalizedGenre.includes("non") &&
+                                normalizedGenre.includes("fiction"))) {
                         nonfictionBooks.push(bookData);
+                    } else {
+                        // Log unmatched genres for debugging
+                        functions.logger.warn(
+                            `${year}: Unmatched genre "${book.genre}" ` +
+                            `(normalized: "${normalizedGenre}") for book ` +
+                            `"${book.title}" by ${book.author}`,
+                        );
                     }
                 });
 
                 functions.logger.info(`${year}: Found ${fictionBooks.length} fiction, ` +
                     `${nonfictionBooks.length} nonfiction books`);
+                if (year === "2025") {
+                    functions.logger.info(`2025 Debug: Total books parsed: ${booksWithMonth.length}, ` +
+                        `Fiction: ${fictionBooks.length}, Non-fiction: ${nonfictionBooks.length}`);
+                    if (booksWithMonth.length > 0) {
+                        functions.logger.info(
+                            "2025 Debug: First few books - " +
+                            `Title: "${booksWithMonth[0].title}", ` +
+                            `Author: "${booksWithMonth[0].author}", ` +
+                            `Genre: "${booksWithMonth[0].genre}"`,
+                        );
+                    }
+                }
 
                 // Create lists for each genre if they have books
                 if (fictionBooks.length > 0) {
@@ -964,6 +1013,7 @@ async function getFavoriteReads() {
     functions.logger.info("Fetching favorite reads from Google Sheets CSV...");
 
     try {
+        // Recent Favs pulls from: Recents sheet (GID 1869146893)
         const csvUrl = "https://docs.google.com/spreadsheets/d/e/" +
             "2PACX-1vQjPR6atSEfc5ItyFLmzEzabJeXG_Tit6_Bbmwu31_JptS4trGGtDR0zla6Q99yNtK9j9VS3VVsf5Ug/" +
             "pub?gid=1869146893&single=true&output=csv";
@@ -982,6 +1032,7 @@ async function getFavoriteReads() {
             functions.logger.info(`Using fixed title: "${title}"`);
 
             // Get reading stats from A18 (row 17, column 0)
+            // Format: "NF: Y | F: Z"
             let readingStats = null;
             if (rows.length > 17) {
                 const statsRow = rows[17]; // Row 18 (0-indexed as 17)
@@ -1016,7 +1067,9 @@ async function getFavoriteReads() {
                 functions.logger.info(`Debug Row ${debugIdx}: C="${debugCols[2]}" D="${debugCols[3]}"`);
             }
 
-            // Get books from C1 onwards (max 10) using proper CSV parsing
+            // Recent Favs: Get books from C1:G10 (rows 0-9, columns C-G)
+            // Column mapping: C=rating (index 2), D=title (index 3),
+            // E=author (index 4), F=summary (index 5), G=genre (index 6)
             for (let i = 0; i < Math.min(10, rows.length); i++) {
                 const row = rows[i];
                 const columns = parseCSVRow(row);
@@ -1046,7 +1099,9 @@ async function getFavoriteReads() {
                 }
             }
 
-            // Now get "last five years" books from C52:G62 (rows 51-61, columns 2-6)
+            // Last Five Years Favs: Get books from C52:G62 (rows 51-61, columns C-G)
+            // Column mapping: C=rating (index 2), D=title (index 3),
+            // E=author (index 4), F=summary (index 5), G=genre (index 6)
             functions.logger.info("Fetching last five years books from C52:G62");
             for (let i = 51; i < Math.min(62, rows.length); i++) {
                 const row = rows[i];
@@ -1056,7 +1111,6 @@ async function getFavoriteReads() {
                 functions.logger.info(`Row ${i+1} limited parsed columns (${columns.length} total):`,
                     columns.slice(0, 7).map((col, idx) => `[${idx}]="${col}"`));
 
-                // C=index 2, D=index 3, E=index 4, F=index 5, G=index 6
                 const rating = columns[2] ? columns[2].trim().replace(/"/g, "") : "";
                 const bookTitle = columns[3] ? columns[3].trim().replace(/"/g, "") : "";
                 const author = columns[4] ? columns[4].trim().replace(/"/g, "") : "";
@@ -1187,6 +1241,7 @@ async function getMusicPlaylists() {
     const playlists = {
         "current": "78o6nYffU84LaDXu5V3tIh",
         "all-time": "6MpHzCTg0si4e63LU6yC0l",
+        "2025": "3ILugd3oiZeLsqFuQ8p8La",
         "2024": "4DVC4v8cIx73Ym1zSKJwhB",
         "2023": "4efiAHCeCZkvikFpsa4sgj",
         "2022": "1QIt5jA8cWTEMU33Lflgia",
@@ -1366,6 +1421,11 @@ async function getStravaDataDirect() {
                     average_watts: detailedActivity?.average_watts || null,
                     weighted_average_watts: detailedActivity?.weighted_average_watts || null,
                     device_watts: detailedActivity?.device_watts || null,
+                    // Add location data from detailed activity
+                    location_city: detailedActivity?.location_city || null,
+                    location_state: detailedActivity?.location_state || null,
+                    location_country: detailedActivity?.location_country || null,
+                    timezone: detailedActivity?.timezone || null,
                     fetchedAt: new Date(),
                 };
             }
