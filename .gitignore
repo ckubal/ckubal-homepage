@@ -54,3 +54,5 @@ inspo\ landscapeimages/
 
 # Package locks (can be regenerated)
 homepage-backend/functions/package-lock.json
+# Deploy copy for Hostinger (source of truth is homepage-frontend/)
+docroot/

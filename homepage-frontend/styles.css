@@ -652,6 +652,21 @@ button.nav-arrow,
     justify-content: flex-end;
 }
 
+/* The company list is one flex row with a forced line break. Desktop breaks
+   after google (7 + 2); mobile breaks after life360 (5 + 4) - see the 768px
+   media query. A break is a zero-height, full-width flex item that pushes the
+   following items onto a new line. */
+.names-break {
+    flex-basis: 100%;
+    height: 0;
+}
+.names-break-mobile {
+    display: none; /* only the mobile breakpoint inserts this break */
+}
+.sep-mobile-only {
+    display: none; /* the google|stanford pipe only shows when they share a line (mobile) */
+}
+
 /* Music Playlist Navigation */
 .music-playlists-navigation {
     margin-bottom: 20px;
@@ -1404,17 +1419,24 @@ button.nav-arrow,
     margin-top: 8px;
 }
 
+/* The builds panel is a flex column with gap:16px, so the gif needs no margin
+   of its own - stacking them was producing a double gap under the copy. */
 .weird-ideas-gif {
-    margin-top: 20px;
-    text-align: center;
+    margin-top: 0;
+    text-align: right;
 }
 
-.weird-ideas-gif {
-    text-align: right;
+/* Same reason: the shared paragraph margin would double up on the flex gap.
+   Scoped so the music/writing/cirque panels keep their spacing. */
+.weird-ideas-content .play-category-description {
+    margin-bottom: 0;
 }
 
 .weird-ideas-image {
     max-width: 100%;
+    /* capped so the builds panel isn't much taller than the other sections */
+    max-height: 80px;
+    width: auto;
     height: auto;
     border-radius: 4px;
     transition: opacity 0.2s ease;
@@ -1498,6 +1520,14 @@ button.nav-arrow,
 .cirque-disobey-link {
     font-size: 1.3rem;
     margin: 0;
+}
+
+/* secondary note under the free-pdf line - smaller and dimmer, no email link */
+.cirque-disobey-buy {
+    font-size: 1rem;
+    color: var(--inactive-color);
+    margin: 6px 0 0 0;
+    line-height: 1.3;
 }
 
 .cirque-disobey-image {
@@ -2299,6 +2329,106 @@ button.nav-arrow,
     font-style: italic;
 }
 
+/* Build carousel (weird little ideas) — sits above the copy in the builds panel */
+.build-swiper-container {
+    width: 100%;
+    max-width: 900px;
+    height: 340px;
+    position: relative;
+    overflow: hidden;
+    margin: 0 0 20px 0;
+}
+
+.build-swiper {
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.build-swiper.swiper-initialized {
+    opacity: 1;
+}
+
+.build-swiper .swiper-slide {
+    text-align: center;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    padding: 12px 12px 8px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    height: 100%;
+}
+
+.build-slide-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-decoration: none;
+    color: inherit;
+    height: 100%;
+    width: 100%;
+}
+
+/* Build art is 600x300 (2:1). `contain` shows all of it - the old `cover` box
+   was cropping the bottom off. Capped at 170px so the art doesn't eat the card;
+   no background, so the letterbox gap blends into the card. */
+.build-swiper .build-image {
+    width: 100%;
+    height: 160px;
+    object-fit: contain;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+/* builds with no url (in review / shut down) - present but not clickable */
+.build-slide-static {
+    cursor: default;
+}
+
+.build-swiper .build-status {
+    font-size: 0.8em;
+    font-weight: 400;
+    opacity: 0.6;
+}
+
+.build-swiper .build-identifier {
+    font-size: 0.7rem;
+    color: var(--inactive-color);
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+}
+
+.build-swiper .build-title {
+    font-size: 0.95rem;
+    color: var(--text-color);
+    font-weight: 600;
+    line-height: 1.2;
+    margin-bottom: 5px;
+}
+
+.build-swiper .build-subtext {
+    font-size: 0.85rem;
+    color: var(--text-secondary, #aaaaaa);
+    line-height: 1.4;
+    max-width: 96%;
+}
+
+a.build-slide-link:hover .build-title {
+    text-decoration: underline;
+}
+
+.build-swiper .swiper-button-next,
+.build-swiper .swiper-button-prev,
+.build-swiper .swiper-button-next:after,
+.build-swiper .swiper-button-prev:after {
+    color: var(--text-color);
+    transition: color 0.3s ease;
+}
+
 /* Mobile Responsive Design - Full Vertical Layout */
 @media (max-width: 768px) {
     body {
@@ -2452,7 +2582,22 @@ button.nav-arrow,
         justify-content: center;
         gap: 8px 12px;
     }
-    
+
+    /* Regroup the company list to 5 + 4 on mobile: break after life360 instead
+       of after google, and swap which separators show. */
+    .names-break-mobile {
+        display: block;
+    }
+    .names-break-desktop {
+        display: none;
+    }
+    .sep-mobile-only {
+        display: inline;
+    }
+    .sep-desktop-only {
+        display: none;
+    }
+
     .experience-name-inline {
         font-size: 0.9rem;
     }
@@ -2502,13 +2647,36 @@ button.nav-arrow,
         box-sizing: border-box !important;
     }
     
+    .build-swiper-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 340px !important;
+        margin: 0 auto 16px auto !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+    }
+
+    /* gif is right-aligned on desktop; center it on mobile */
+    .weird-ideas-gif {
+        text-align: center;
+    }
+
+    /* narrower cards wrap the copy onto more lines, so give the art less room */
+    .build-swiper .build-image {
+        height: 148px;
+    }
+
+    .build-swiper .build-subtext {
+        font-size: 0.8rem;
+    }
+
     .record-swiper, .shoe-swiper, .jersey-swiper {
         width: 100%;
         height: 100%;
         padding: 20px; /* Simpler mobile padding */
         overflow: visible;
     }
-    
+
     /* Mobile slides - proper sizing for centering */
     .record-swiper .swiper-slide {
         width: auto !important; /* Let Swiper calculate based on slidesPerView */
@@ -3613,4 +3781,38 @@ button.nav-arrow,
 .narrative-link:hover {
     color: var(--text-secondary);
     transition: color 0.3s ease;
+}
+
+/* external link in narrative (e.g. latest substack) — not intercepted by narrative-link click handler */
+.narrative-writing-link {
+    color: var(--text-color);
+    text-decoration: underline;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.narrative-writing-link:hover {
+    color: var(--text-secondary);
+}
+
+/* external link in narrative (latest weird little idea) — same treatment as writing */
+.narrative-build-link {
+    color: var(--text-color);
+    text-decoration: underline;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.narrative-build-link:hover {
+    color: var(--text-secondary);
+}
+
+.bio-writing-link {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.bio-writing-link:hover {
+    color: var(--text-secondary);
 }

@@ -36,6 +36,114 @@ function getTimeSince(timestamp) {
     }
 }
 
+// ~3 months for "currently" writing line (bio always uses latest post regardless)
+const WRITING_RECENCY_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
+
+function escapeHtml(text) {
+    if (text == null) return '';
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function isTrustedSubstackArticleUrl(url) {
+    try {
+        const u = new URL(url);
+        return u.protocol === 'https:' && u.hostname.endsWith('substack.com');
+    } catch {
+        return false;
+    }
+}
+
+function parsePublishedAtForWriting(raw) {
+    if (raw == null) return null;
+    if (raw instanceof Date) {
+        return Number.isNaN(raw.getTime()) ? null : raw;
+    }
+    if (typeof raw === 'string') {
+        const d = new Date(raw);
+        return Number.isNaN(d.getTime()) ? null : d;
+    }
+    if (typeof raw === 'object') {
+        if (raw._seconds != null) return new Date(raw._seconds * 1000);
+        if (raw.seconds != null) return new Date(raw.seconds * 1000);
+    }
+    return null;
+}
+
+function getLatestWritingFromSiteData(data) {
+    if (!data) return null;
+    const lw = data.latestWriting?.value ?? data.latestWriting;
+    if (!lw || !lw.title || !lw.url) return null;
+    if (!isTrustedSubstackArticleUrl(lw.url)) return null;
+    return lw;
+}
+
+// Build links are scraped from weirdlittleideas.com, so only render https ones
+// (guards against javascript:/data: sneaking through if that page ever changes).
+function isSafeBuildUrl(url) {
+    try {
+        return new URL(url).protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
+
+// Builds arrive newest-first from the backend. Some have no url (still in review,
+// or shut down) - those render as non-clickable cards, matching weirdlittleideas.com.
+function getBuildsFromSiteData(data) {
+    if (!data) return [];
+    const builds = data.builds?.value ?? data.builds;
+    if (!Array.isArray(builds)) return [];
+    return builds.filter((b) => b && b.title);
+}
+
+function truncateBuildSubtext(text, max = 180) {
+    const s = (text || '').trim();
+    if (s.length <= max) return s;
+    return s.slice(0, s.lastIndexOf(' ', max) > 0 ? s.lastIndexOf(' ', max) : max) + '…';
+}
+
+function isWritingRecentEnoughForNarrative(lw) {
+    const d = parsePublishedAtForWriting(lw.publishedAt);
+    if (!d) return false;
+    const age = Date.now() - d.getTime();
+    return age >= 0 && age <= WRITING_RECENCY_WINDOW_MS;
+}
+
+function getWritingRecencyPhrase(publishedAt) {
+    const t = parsePublishedAtForWriting(publishedAt);
+    if (!t) return '';
+    const now = new Date();
+    const pubDay = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+    const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diffDays = Math.floor((nowDay - pubDay) / (1000 * 60 * 60 * 24));
+    if (diffDays <= 0) return 'today';
+    if (diffDays === 1) return 'yesterday';
+    if (diffDays < 7) return 'earlier this week';
+    if (diffDays < 14) return 'last week';
+    if (diffDays < 28) return 'a few weeks ago';
+    if (diffDays < 46) return 'about a month ago';
+    return 'a month or two ago';
+}
+
+function updateBioWriterFollowup(data) {
+    const el = document.getElementById('bio-writer-followup');
+    if (!el) return;
+    const lw = getLatestWritingFromSiteData(data);
+    const fallback = ' on human behavior, social observation, how we shape the internet, and it shapes us.';
+    if (!lw) {
+        el.textContent = fallback;
+        return;
+    }
+    const title = escapeHtml((lw.title || '').toLowerCase());
+    const url = escapeHtml(lw.url);
+    el.innerHTML =
+        ` — the most recent piece i wrote was <a href="${url}" target="_blank" rel="noopener" class="bio-writing-link"><em>${title}</em></a>. i usually write about human behavior, social observation, how we shape the internet, and it shapes us.`;
+}
+
 function mapSleepStatus(status, performance) {
     const statusMap = {
         'great': 'slept pretty well',
@@ -53,10 +161,12 @@ function getIndoorCyclingDescription(activityData, duration, formattedDistance) 
     
     // Helper function to extract instructor name
     function extractInstructor(name) {
-        // Pattern: "CLASS NAME with INSTRUCTOR"
-        const withMatch = name.match(/\bwith\s+([a-zA-Z]+)/i);
+        // Pattern: "CLASS NAME with INSTRUCTOR". Instructors have surnames
+        // ("...with Alex Toussaint"), so take the whole name, not just the
+        // first word. Stops at anything that isn't a name (parens, &, digits).
+        const withMatch = name.match(/\bwith\s+([a-zA-Z][a-zA-Z.'-]*(?:\s+[a-zA-Z][a-zA-Z.'-]*)*)/i);
         if (withMatch) {
-            return withMatch[1].toLowerCase();
+            return withMatch[1].trim().toLowerCase();
         }
         
         // Pattern: "INSTRUCTOR's CLASS" or just instructor name at end
@@ -78,8 +188,8 @@ function getIndoorCyclingDescription(activityData, duration, formattedDistance) 
     function extractClassType(name) {
         const original = name.trim();
         
-        // Remove instructor pattern and clean up
-        let cleaned = original.replace(/\bwith\s+[a-zA-Z]+$/i, '').trim();
+        // Remove instructor pattern and clean up (multi-word names included)
+        let cleaned = original.replace(/\bwith\s+[a-zA-Z][a-zA-Z.'-]*(?:\s+[a-zA-Z][a-zA-Z.'-]*)*\s*$/i, '').trim();
         
         // For SoulCycle patterns like "FEEL GOOD FRIDAY with Zapporah"
         if (cleaned.toLowerCase().includes('feel good friday')) {
@@ -404,15 +514,51 @@ function generateNarrative(data) {
         narrative += ". ";
     }
     
-    // Workout (last)
-    if (activityData) {
-        const workoutDesc = getWorkoutDescription(activityData);
-        if (workoutDesc) {
-            narrative += `${workoutDesc}.`;
+    const writingForNarrative = (() => {
+        const lw = getLatestWritingFromSiteData(data);
+        return lw && isWritingRecentEnoughForNarrative(lw) ? lw : null;
+    })();
+    if (writingForNarrative) {
+        const title = escapeHtml((writingForNarrative.title || '').toLowerCase());
+        const url = escapeHtml(writingForNarrative.url);
+        const when = escapeHtml(getWritingRecencyPhrase(writingForNarrative.publishedAt));
+        const pieceHtml =
+            `i wrote a piece <a href="${url}" target="_blank" rel="noopener" class="narrative-writing-link"><em>${title}</em></a> ${when}`;
+        if (!hasContent) {
+            narrative = `${pieceHtml}. `;
+            hasContent = true;
+        } else {
+            narrative += `${pieceHtml}. `;
         }
     }
     
-    return narrative;
+    // Workout
+    if (activityData) {
+        const workoutDesc = getWorkoutDescription(activityData);
+        if (workoutDesc) {
+            narrative += `${workoutDesc}. `;
+            hasContent = true;
+        }
+    }
+
+    // Most recent weird little idea (last)
+    const latestBuild = getBuildsFromSiteData(data)[0];
+    if (latestBuild) {
+        const buildTitle = escapeHtml((latestBuild.title || '').toLowerCase());
+        // The newest build isn't always linkable (in review, or shut down).
+        const titleHtml = isSafeBuildUrl(latestBuild.url) ?
+            `<a href="${escapeHtml(latestBuild.url)}" target="_blank" rel="noopener" class="narrative-build-link"><em>${buildTitle}</em></a>` :
+            `<em>${buildTitle}</em>`;
+        const buildHtml = `the most recent thing i built was ${titleHtml}`;
+        if (!hasContent) {
+            narrative = `${buildHtml}.`;
+            hasContent = true;
+        } else {
+            narrative += `${buildHtml}.`;
+        }
+    }
+
+    return narrative.trimEnd();
 }
 
 // Fetch and update data
@@ -427,6 +573,14 @@ async function fetchData() {
         
         const data = await response.json();
         console.log('Received data:', data);
+        console.log('=== THIS YEAR READS DEBUG ===');
+        console.log('data.thisYearReads:', data.thisYearReads);
+        if (data.thisYearReads) {
+            console.log('thisYearReads.monthlyReads:', data.thisYearReads.monthlyReads);
+            console.log('thisYearReads.monthlyReads length:', data.thisYearReads.monthlyReads?.length);
+            console.log('thisYearReads.monthlyReads JSON:', JSON.stringify(data.thisYearReads.monthlyReads, null, 2));
+        }
+        console.log('=== END THIS YEAR READS DEBUG ===');
         
         updateUI(data);
         
@@ -523,7 +677,16 @@ function updateUI(data) {
     
     // Store data globally for taste categories
     window.siteData = data;
-    
+
+    // If "think" was chosen on load, its random panel was waiting on this data
+    runPendingThinkDefault();
+
+    // The builds carousel needs siteData.builds. If create was opened before
+    // data arrived (on load, or a quick click), the weird-ideas panel rendered
+    // without its carousel - fill it in now. Guarded on the carousel being
+    // absent so we don't reset it on the recurring 5-minute refresh.
+    refreshBuildsCarouselIfMissing();
+
     // setup lists with data from backend
     initializeLists(data);
     
@@ -536,9 +699,11 @@ function isDataFullyLoaded(data) {
     const hasBook = data.currentBook?.value || data.currentBook;
     const hasSong = data.currentSong?.value || data.currentSong;
     const hasActivity = data.activityData?.value || data.activityData;
+    const lw = getLatestWritingFromSiteData(data);
+    const hasRecentWriting = lw && isWritingRecentEnoughForNarrative(lw);
     
     // We need at least one data point to show something meaningful
-    return hasBook || hasSong || hasActivity;
+    return !!(hasBook || hasSong || hasActivity || hasRecentWriting);
 }
 
 function waitForDataAndStartTypewriter(data, startTime = Date.now()) {
@@ -574,6 +739,9 @@ function waitForDataAndStartTypewriter(data, startTime = Date.now()) {
                             scrollToDynamicContentOnMobile();
                         } else if (target === 'favorite-music') {
                             showFavoriteMusic(dynamicContent);
+                            scrollToDynamicContentOnMobile();
+                        } else if (target === 'writing') {
+                            showCreativeWork(dynamicContent, 'writing');
                             scrollToDynamicContentOnMobile();
                         }
                     }
@@ -759,9 +927,33 @@ function initializeTasteCategories() {
     };
     
     // Load real music lists from backend if available
+    console.log('DEBUG: Checking for tasteMusicLists in window.siteData:', {
+        hasSiteData: !!window.siteData,
+        siteDataKeys: window.siteData ? Object.keys(window.siteData) : 'no siteData',
+        hasTasteMusicLists: !!(window.siteData && window.siteData.tasteMusicLists),
+        tasteMusicListsRaw: window.siteData?.tasteMusicLists
+    });
+    
     if (window.siteData && window.siteData.tasteMusicLists) {
-        tasteLists['taste-music'] = window.siteData.tasteMusicLists;
-        console.log('Loaded taste music lists:', window.siteData.tasteMusicLists);
+        // Handle both formats: {value: [...]} or directly [...]
+        const lists = Array.isArray(window.siteData.tasteMusicLists) 
+            ? window.siteData.tasteMusicLists 
+            : (window.siteData.tasteMusicLists.value || window.siteData.tasteMusicLists);
+        tasteLists['taste-music'] = lists;
+        console.log('Loaded taste music lists:', lists);
+        console.log('DEBUG: tasteMusicLists structure:', {
+            raw: window.siteData.tasteMusicLists,
+            hasValue: !!window.siteData.tasteMusicLists.value,
+            value: window.siteData.tasteMusicLists.value,
+            isArray: Array.isArray(lists),
+            length: Array.isArray(lists) ? lists.length : 'not an array',
+            firstItem: Array.isArray(lists) && lists.length > 0 ? lists[0] : 'no items'
+        });
+    } else {
+        console.warn('No tasteMusicLists found in window.siteData:', {
+            hasSiteData: !!window.siteData,
+            siteDataKeys: window.siteData ? Object.keys(window.siteData) : 'no siteData'
+        });
     }
     
     // Load real podcast episodes from backend if available
@@ -809,13 +1001,31 @@ function initializeTasteCategories() {
     });
     
     function displayRandomTasteList(category) {
+        // Check both window.tasteLists (global) and local tasteLists
         const lists = (window.tasteLists && window.tasteLists[category]) || tasteLists[category];
-        if (!lists || lists.length === 0) return;
+        console.log('displayRandomTasteList called for category:', category, 'lists:', lists);
+        if (!lists || lists.length === 0) {
+            console.warn('No lists found for category:', category, 'window.tasteLists:', window.tasteLists, 'local tasteLists:', tasteLists);
+            return;
+        }
         
         // Get a random list from this category
         const randomList = lists[Math.floor(Math.random() * lists.length)];
+        console.log('displayRandomTasteList: selected random list:', randomList);
         const titleEl = document.getElementById(`current-${category}-title`);
         const listEl = document.getElementById(`current-${category}-list`);
+        
+        console.log('displayRandomTasteList: elements found:', {
+            titleEl: !!titleEl,
+            listEl: !!listEl,
+            titleElId: `current-${category}-title`,
+            listElId: `current-${category}-list`
+        });
+        
+        if (!titleEl || !listEl) {
+            console.error('displayRandomTasteList: Missing elements for category:', category);
+            return;
+        }
         
         if (titleEl) titleEl.textContent = randomList.title;
         
@@ -1424,6 +1634,109 @@ function initializeJerseyCollection(carouselId = 'jersey-carousel') {
     console.log('Jersey collection Swiper initialization complete');
 }
 
+function initializeBuildCarousel(carouselId = 'dynamic-build-carousel') {
+    const buildCarousel = document.getElementById(carouselId);
+    if (!buildCarousel) {
+        console.log('Missing build carousel element, skipping initialization');
+        return;
+    }
+
+    const builds = getBuildsFromSiteData(window.siteData);
+    if (!builds.length) {
+        console.log('No builds available, skipping build carousel');
+        return;
+    }
+
+    if (window.currentBuildSwiper) {
+        try {
+            window.currentBuildSwiper.destroy(true, true);
+            window.currentBuildSwiper = null;
+        } catch (e) {
+            console.log('Error destroying previous build swiper:', e);
+        }
+    }
+
+    console.log(`Initializing build carousel with ${builds.length} builds...`);
+
+    buildCarousel.innerHTML = builds.map(build => {
+        const title = escapeHtml((build.title || '').toLowerCase());
+        const identifier = escapeHtml((build.identifier || '').toLowerCase());
+        // Full description - the 400 cap is only a guard against a runaway future entry.
+        const subtext = escapeHtml(truncateBuildSubtext(build.subtext, 400));
+        const image = isSafeBuildUrl(build.image) ? escapeHtml(build.image) : '';
+        const status = escapeHtml((build.status || '').toLowerCase());
+        const linkable = isSafeBuildUrl(build.url);
+
+        const inner = `
+                ${image ? `<img src="${image}" alt="${title}" class="build-image" loading="lazy" />` : ''}
+                <div class="build-identifier">${identifier}</div>
+                <div class="build-title">${title}${status ? ` <span class="build-status">(${status})</span>` : ''}</div>
+                <div class="build-subtext">${subtext}</div>`;
+
+        // No url (in review / shut down) - render a plain card rather than a dead link.
+        const body = linkable ?
+            `<a href="${escapeHtml(build.url)}" target="_blank" rel="noopener" class="build-slide-link">${inner}
+            </a>` :
+            `<div class="build-slide-link build-slide-static">${inner}
+            </div>`;
+
+        return `
+        <div class="swiper-slide">
+            ${body}
+        </div>`;
+    }).join('');
+
+    setTimeout(() => {
+        if (typeof Swiper === 'undefined') {
+            console.error('Swiper library not loaded');
+            return;
+        }
+
+        window.currentBuildSwiper = new Swiper('.build-swiper', {
+            effect: 'slide', // these cards carry text, so no coverflow rotation
+            grabCursor: true,
+            centeredSlides: true,
+            slidesPerView: 1.15,
+            spaceBetween: 16,
+            initialSlide: 0, // newest build first
+            loop: true,
+            loopAdditionalSlides: 2,
+            // deliberately no autoplay - the copy is meant to be read
+            keyboard: {
+                enabled: true,
+                onlyInViewport: true,
+            },
+            observer: true,
+            observeParents: true,
+            observeSlideChildren: true,
+            updateOnImagesReady: true,
+            watchOverflow: true,
+            breakpoints: {
+                320: { slidesPerView: 1.05, spaceBetween: 10 },
+                769: { slidesPerView: 1.15, spaceBetween: 16 },
+            },
+            navigation: {
+                nextEl: '.build-swiper .swiper-button-next',
+                prevEl: '.build-swiper .swiper-button-prev',
+            },
+            on: {
+                init: function () {
+                    console.log('Build Swiper initialized');
+                    setTimeout(() => {
+                        this.update();
+                        this.updateSlides();
+                        this.slideTo(this.activeIndex, 0);
+                    }, 50);
+                },
+                resize: function () {
+                    this.update();
+                    this.updateSlides();
+                }
+            }
+        });
+    }, 500);
+}
+
 // Record collection data - organized alphabetically by artist, chronologically by release year
 const recordCollection = [
     { artist: "the 1975", album: "a brief inquiry into online relationships", year: 2018, cover: "the-1975-brief-inquiry.jpg" },
@@ -1725,20 +2038,99 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
     console.log('Record collection Swiper initialization complete');
 }
 
+// Open a highlight the way a real click would - same content dispatch, same
+// active/inactive states - minus the mobile auto-scroll, which is only wanted
+// when the user actually taps something.
+function openHighlightProgrammatically(highlight) {
+    if (!highlight) return;
+    suppressMobileAutoScroll = true;
+    try {
+        highlight.click();
+    } finally {
+        suppressMobileAutoScroll = false;
+    }
+}
+
+// "work" opens with roblox already selected. showWorkExperience() marks the
+// roblox *detail* active on its own, but not the name in the list, so set both
+// here. The panel is written synchronously, so the nodes exist immediately -
+// no need to race the 100ms listener rebind inside showWorkExperience().
+function showDefaultWorkContent(dynamicContent) {
+    if (!dynamicContent) return;
+    showWorkExperience(dynamicContent);
+    const names = document.querySelectorAll('.experience-name-inline');
+    const details = document.querySelectorAll('.experience-detail-item');
+    const roblox = [...names].find(n => n.getAttribute('data-target') === 'roblox');
+    if (!roblox) return;
+    names.forEach(n => {
+        n.classList.remove('active');
+        n.classList.add('inactive');
+    });
+    details.forEach(d => d.classList.remove('active'));
+    roblox.classList.remove('inactive');
+    roblox.classList.add('active');
+    const detail = document.getElementById('detail-roblox');
+    if (detail) detail.classList.add('active');
+}
+
+// "create" always opens on weird little ideas.
+function showDefaultCreateContent() {
+    openHighlightProgrammatically(
+        document.querySelector('#bio-create .highlight.clickable[data-target="builds"]'));
+}
+
+// "think" opens on a random one of its highlights (reader, records, podcasts, ...).
+function showDefaultThinkContent() {
+    const highlights = document.querySelectorAll('#bio-think .highlight.clickable');
+    if (!highlights.length) return;
+    openHighlightProgrammatically(highlights[Math.floor(Math.random() * highlights.length)]);
+}
+
+// Most think panels read from siteData, which only lands after init runs. When
+// think is the section chosen on load, wait for the data rather than rendering
+// an empty panel. Consumed by updateUI().
+let pendingThinkDefault = false;
+
+function runPendingThinkDefault() {
+    if (!pendingThinkDefault) return;
+    pendingThinkDefault = false;
+    // Don't stomp on anything the user picked while data was in flight.
+    const thinkActive = document.querySelector('.bio-label.active')?.dataset.paragraph === 'think';
+    const dc = document.getElementById('dynamic-content');
+    if (thinkActive && dc && dc.innerHTML.trim() === '') {
+        showDefaultThinkContent();
+    }
+}
+
+// The weird-ideas panel is showing (rendered before data) but its carousel
+// never mounted because builds were empty. Re-render it now that data exists.
+function refreshBuildsCarouselIfMissing() {
+    const dc = document.getElementById('dynamic-content');
+    if (!dc) return;
+    const buildsPanelShown = dc.querySelector('.weird-ideas-content');
+    const carouselMissing = !dc.querySelector('#dynamic-build-carousel');
+    if (buildsPanelShown && carouselMissing && getBuildsFromSiteData(window.siteData).length) {
+        showCreativeWork(dc, 'builds');
+    }
+}
+
 // Bio navigation functionality
 function initializeBioNavigation() {
     const bioLabels = document.querySelectorAll('.bio-label.clickable');
     const bioParagraphs = document.querySelectorAll('.bio-paragraph');
     const dynamicContent = document.getElementById('dynamic-content');
     
-    // Default to work section on load
-    const workLabel = document.querySelector('.bio-label[data-paragraph="work"]');
-    const workParagraph = document.getElementById('bio-work');
+    // Randomly select one of the three sections on load
+    const sections = ['work', 'think', 'create'];
+    const randomSection = sections[Math.floor(Math.random() * sections.length)];
     
-    if (workLabel && workParagraph && dynamicContent) {
-        // Set proper active/inactive states for default work selection
+    const defaultLabel = document.querySelector(`.bio-label[data-paragraph="${randomSection}"]`);
+    const defaultParagraph = document.getElementById(`bio-${randomSection}`);
+    
+    if (defaultLabel && defaultParagraph && dynamicContent) {
+        // Set proper active/inactive states for the randomly selected section
         bioLabels.forEach(l => {
-            if (l === workLabel) {
+            if (l === defaultLabel) {
                 l.classList.add('active');
                 l.classList.remove('inactive');
             } else {
@@ -1746,8 +2138,22 @@ function initializeBioNavigation() {
                 l.classList.add('inactive');
             }
         });
-        workParagraph.style.display = 'block';
-        showWorkExperience(dynamicContent, false);
+        defaultParagraph.style.display = 'block';
+        
+        // Every section opens with something: work -> roblox,
+        // create -> weird little ideas, think -> a random highlight.
+        if (randomSection === 'work') {
+            showDefaultWorkContent(dynamicContent);
+        } else if (randomSection === 'create') {
+            showDefaultCreateContent();
+        } else if (randomSection === 'think') {
+            // Defer until siteData exists (see runPendingThinkDefault).
+            if (window.siteData) {
+                showDefaultThinkContent();
+            } else {
+                pendingThinkDefault = true;
+            }
+        }
     }
     
     bioLabels.forEach(label => {
@@ -1783,10 +2189,12 @@ function initializeBioNavigation() {
             // Show appropriate right sidebar content based on section
             if (dynamicContent) {
                 if (targetParagraph === 'work') {
-                    showWorkExperience(dynamicContent, false);
+                    showDefaultWorkContent(dynamicContent);
+                } else if (targetParagraph === 'create') {
+                    showDefaultCreateContent();
+                } else if (targetParagraph === 'think') {
+                    showDefaultThinkContent();
                 }
-                // create and think dont auto-load
-                // Content appears when user clicks specific highlights within paragraphs
             }
         });
     });
@@ -1829,8 +2237,13 @@ function waitForReadyThenInitialize(initFunction, type) {
     checkReadiness();
 }
 
+// Set while a default panel is opened programmatically. A real tap should scroll
+// the content into view on mobile; auto-opening on page load should not.
+let suppressMobileAutoScroll = false;
+
 // scroll to content on mobile
 function scrollToDynamicContentOnMobile() {
+    if (suppressMobileAutoScroll) return;
     if (isMobileDevice()) {
         const dynamicContent = document.getElementById('dynamic-content');
         if (dynamicContent) {
@@ -1975,12 +2388,13 @@ function showWorkExperience(container, showSelection = true) {
             <span class="experience-name-inline" data-target="ideo">ideo</span>
             <span class="separator">|</span>
             <span class="experience-name-inline" data-target="life360">life360</span>
-            <span class="separator">|</span>
+            <span class="separator sep-desktop-only">|</span>
+            <span class="names-break names-break-mobile"></span>
             <span class="experience-name-inline" data-target="chronos">chronos</span>
             <span class="separator">|</span>
             <span class="experience-name-inline" data-target="google">google</span>
-        </div>
-        <div class="experience-names-row">
+            <span class="separator sep-mobile-only">|</span>
+            <span class="names-break names-break-desktop"></span>
             <span class="experience-name-inline" data-target="stanford">stanford gsb</span>
             <span class="separator">|</span>
             <span class="experience-name-inline" data-target="columbia">columbia</span>
@@ -2031,19 +2445,21 @@ function showWorkExperience(container, showSelection = true) {
 function showInvestments(container, showSelection = false) {
     container.innerHTML = `
         <div class="investment-names-row">
+            <span class="investment-name-inline clickable" data-target="mercury">mercury</span>
+            <span class="separator">|</span>
             <span class="investment-name-inline clickable" data-target="alma">alma</span>
             <span class="separator">|</span>
             <span class="investment-name-inline clickable" data-target="deel">deel</span>
             <span class="separator">|</span>
             <span class="investment-name-inline clickable" data-target="bloom-wolf">bloom & wolf</span>
             <span class="separator">|</span>
-            <span class="investment-name-inline clickable" data-target="vibrant">vibrant</span>
+            <span class="investment-name-inline clickable" data-target="ultralight">ultralight</span>
             <span class="separator">|</span>
             <span class="investment-name-inline clickable" data-target="healthtap">healthtap</span>
-            <span class="separator">|</span>
-            <span class="investment-name-inline clickable" data-target="boam">boam ai</span>
         </div>
         <div class="investment-names-row">
+            <span class="investment-name-inline clickable" data-target="boam">boam ai</span>
+            <span class="separator">|</span>
             <span class="investment-name-inline clickable" data-target="pixaera">pixaera</span>
             <span class="separator">|</span>
             <span class="investment-name-inline clickable" data-target="upwage">upwage</span>
@@ -2079,6 +2495,10 @@ function showInvestments(container, showSelection = false) {
         <!-- Combined details container for both main investments and syndicates -->
         <div class="investment-details-container" style="margin-top: 30px;">
             <!-- Main Investment Details -->
+            <div class="investment-detail-item" id="detail-mercury">
+                <p class="investment-url"><a href="https://mercury.com/" target="_blank" rel="noopener" class="external-link">mercury.com</a></p>
+                <p>online banking built for startups and businesses — checking, savings, corporate cards, payments, and treasury in one api-first platform. widely used across the startup ecosystem.</p>
+            </div>
             <div class="investment-detail-item" id="detail-alma">
                 <p class="investment-url"><a href="https://www.tryalma.com/" target="_blank" rel="noopener" class="external-link">tryalma.com</a></p>
                 <p>ai-powered legal tech platform simplifying the visa process for technologists, founders, and researchers. automates document processing and provides personal legal advisors to fast-track international talent into america's tech ecosystem with higher approval rates.</p>
@@ -2087,8 +2507,8 @@ function showInvestments(container, showSelection = false) {
                 <p class="investment-url"><a href="https://www.bloomandwolf.com/en" target="_blank" rel="noopener" class="external-link">bloomandwolf.com</a></p>
                 <p>premium silk flower service disrupting the $35 billion fresh flower industry with beautiful, sustainable alternatives. creates ultra-realistic floral arrangements that help b2b and d2c customers maintain beautiful spaces with less effort, lower cost, and significantly reduced environmental impact. leading the shift from perishable to permanent while delivering the same emotional experience.</p>
             </div>
-            <div class="investment-detail-item" id="detail-vibrant">
-                <p class="investment-url"><a href="https://www.vibrantpractice.com/" target="_blank" rel="noopener" class="external-link">vibrantpractice.com</a></p>
+            <div class="investment-detail-item" id="detail-ultralight">
+                <p class="investment-url"><a href="https://www.ultralighthealth.com/" target="_blank" rel="noopener" class="external-link">ultralighthealth.com</a></p>
                 <p>ai-native operating system built for functional, integrative, and longevity medicine practitioners moving beyond symptom management to root-cause care. designed to help modern clinicians work faster, think deeper, and deliver precision medicine tailored to unique biology and lifestyle without drowning in outdated systems.</p>
             </div>
             <div class="investment-detail-item" id="detail-healthtap">
@@ -2224,10 +2644,28 @@ let availableTasteLists = [];
 
 function showGoatRappers(container) {
     // Find taste lists from availableLists
+    console.log('showGoatRappers called, window.siteData:', window.siteData);
     if (window.siteData && window.siteData.tasteMusicLists) {
-        const lists = window.siteData.tasteMusicLists.value || window.siteData.tasteMusicLists;
-        const goatRappersList = lists.find(list => list.title.toLowerCase().includes('goat rappers'));
-        const favoriteAlbumsList = lists.find(list => list.title.toLowerCase().includes('favorite albums'));
+        // Handle both formats: {value: [...]} or directly [...]
+        const lists = Array.isArray(window.siteData.tasteMusicLists) 
+            ? window.siteData.tasteMusicLists 
+            : (window.siteData.tasteMusicLists.value || window.siteData.tasteMusicLists);
+        console.log('showGoatRappers: lists found:', lists, 'isArray:', Array.isArray(lists));
+        if (!Array.isArray(lists)) {
+            console.error('showGoatRappers: lists is not an array!', lists);
+            container.innerHTML = `<div class="goat-rappers-container"><p class="loading-message">Error: taste lists data format incorrect</p></div>`;
+            return;
+        }
+        console.log('showGoatRappers: all lists:', lists.map(l => l.title));
+        const goatRappersList = lists.find(list => 
+            list.title.toLowerCase().includes('goat rappers') || 
+            list.title.toLowerCase().includes('rappers')
+        );
+        const favoriteAlbumsList = lists.find(list => 
+            list.title.toLowerCase().includes('favorite albums') ||
+            list.title.toLowerCase().includes('albums')
+        );
+        console.log('showGoatRappers: found lists:', { goatRappersList, favoriteAlbumsList });
         
         availableTasteLists = [];
         if (favoriteAlbumsList) availableTasteLists.push(favoriteAlbumsList);
@@ -2410,7 +2848,10 @@ let availableMusicLists = [];
 function showMusicLists(container) {
     // Get music lists (albums and songs) from the stored data  
     if (window.siteData && window.siteData.tasteMusicLists) {
-        const lists = window.siteData.tasteMusicLists.value || window.siteData.tasteMusicLists;
+        // Handle both formats: {value: [...]} or directly [...]
+        const lists = Array.isArray(window.siteData.tasteMusicLists) 
+            ? window.siteData.tasteMusicLists 
+            : (window.siteData.tasteMusicLists.value || window.siteData.tasteMusicLists);
         // Filter to only albums and songs lists (not rappers)
         availableMusicLists = lists.filter(list => 
             list.title.toLowerCase().includes('favorite albums') || 
@@ -2522,7 +2963,7 @@ function showFavoriteMusic(container) {
         
         if (availablePlaylists.length > 0) {
             // Get Spotify stats for intro sentence
-            const spotifyStats = window.siteData?.spotifyStats?.value;
+            const spotifyStats = window.siteData?.spotifyStats?.value || window.siteData?.spotifyStats;
             let statsText = "";
             
             if (spotifyStats) {
@@ -2538,13 +2979,13 @@ function showFavoriteMusic(container) {
             
             container.innerHTML = `
                 ${statsText ? `<div class="music-stats"><p class="stats-text">${statsText}</p></div>` : ""}
-                
+
                 <div class="music-nav-container">
-                    ${availablePlaylists.map((year, index) => 
+                    ${availablePlaylists.map((year, index) =>
                         `<span class="music-nav-item clickable" data-year="${year}">${year.replace('-', '‑')}</span>`
                     ).join('<span class="separator">|</span>')}
                 </div>
-                
+
                 <div class="music-playlist-content">
                     <div class="playlist-thumbnail" id="playlist-thumbnail" style="float: left; margin-right: 16px; margin-bottom: 16px;">
                         <img src="" alt="Playlist artwork" id="playlist-image" style="width: 120px; height: 120px; border-radius: 8px; object-fit: cover; display: none;" />
@@ -2675,7 +3116,7 @@ let currentAnnualIndex = 0; // For annual reading lists navigation
 function showFavoriteReads(container) {
     // Get favorite reads and annual reading lists from stored data
     const readsData = window.siteData?.favoriteReads?.value || window.siteData?.favoriteReads;
-    const annualLists = window.siteData?.annualReadingLists?.value || [];
+    const annualLists = window.siteData?.annualReadingLists?.value || window.siteData?.annualReadingLists || [];
     
     // If no data yet, fetch it
     if (!window.siteData) {
@@ -2696,18 +3137,35 @@ function showFavoriteReads(container) {
     
     if (readsData) {
         // handle old and new data formats
-        const recentReads = readsData.recentReads || readsData.items || [];
-        const lastFiveYearsReads = readsData.lastFiveYearsReads || [];
+        const recentReads = Array.isArray(readsData.recentReads) 
+            ? readsData.recentReads 
+            : (readsData.items || []);
+        const lastFiveYearsReads = Array.isArray(readsData.lastFiveYearsReads) 
+            ? readsData.lastFiveYearsReads 
+            : [];
+        
+        console.log('DEBUG: readsData structure:', {
+            hasRecentReads: !!readsData.recentReads,
+            recentReadsLength: recentReads.length,
+            hasLastFiveYearsReads: !!readsData.lastFiveYearsReads,
+            lastFiveYearsReadsLength: lastFiveYearsReads.length,
+            readsDataKeys: Object.keys(readsData),
+            recentReadsSample: recentReads.slice(0, 2),
+            lastFiveYearsReadsSample: lastFiveYearsReads.slice(0, 2)
+        });
         
         // Set initial list based on currentReadList, default to recent
         if (!currentReadList) currentReadList = 'recent';
         
         if (currentReadList === 'recent') {
-            availableReads = recentReads;
+            availableReads = recentReads || [];
             currentReadIndex = 0;
+            console.log('Set availableReads for recent:', availableReads.length, 'items:', availableReads);
         } else if (currentReadList === 'lastFiveYears') {
-            availableReads = lastFiveYearsReads;
+            availableReads = lastFiveYearsReads || [];
+            // Don't randomize - start at beginning for consistent navigation
             currentReadIndex = 0;
+            console.log('Set availableReads for lastFiveYears:', availableReads.length, 'items:', availableReads);
         } else if (currentReadList === 'thisYear') {
             // For "this year", show the monthly list format instead of cards
             // Don't return early - let the HTML structure be created first
@@ -2724,11 +3182,22 @@ function showFavoriteReads(container) {
         const thisYearReadsData = window.siteData?.thisYearReads?.value || window.siteData?.thisYearReads;
         console.log('DEBUG: annualLists data:', annualLists);
         console.log('DEBUG: annualLists length:', annualLists.length);
-        console.log('DEBUG: All years in annualLists:', annualLists.map(list => ({ year: list.year, type: list.type, title: list.title, itemsCount: list.items?.length || 0 })));
-        const uniqueYears = [...new Set(annualLists.map(list => list.year))].sort((a, b) => b - a);
+        console.log('DEBUG: All years in annualLists:', annualLists.map(list => ({ 
+            year: list.year, 
+            yearType: typeof list.year,
+            type: list.type, 
+            title: list.title, 
+            itemsCount: list.items?.length || 0 
+        })));
+        const allYears = annualLists.map(list => list.year);
+        console.log('DEBUG: Raw years array:', allYears);
+        console.log('DEBUG: Years with types:', allYears.map(y => ({ value: y, type: typeof y })));
+        const uniqueYears = [...new Set(allYears)].sort((a, b) => b - a);
         console.log('DEBUG: uniqueYears extracted:', uniqueYears);
         console.log('DEBUG: Does 2025 exist in uniqueYears?', uniqueYears.includes(2025));
         console.log('DEBUG: Does "2025" (string) exist in uniqueYears?', uniqueYears.includes("2025"));
+        console.log('DEBUG: Does 2025 (number) exist in allYears?', allYears.includes(2025));
+        console.log('DEBUG: Does "2025" (string) exist in allYears?', allYears.includes("2025"));
         
         // Create navigation items starting with "this year" if we have thisYearReads data
         let navItems = [];
@@ -2784,16 +3253,30 @@ function showFavoriteReads(container) {
             updateReadNavigation();
         } else {
             // arrow nav for cards
+            displayCurrentRead();
+            updateReadNavigation();
+            
+            // Attach event listeners AFTER displayCurrentRead to ensure buttons exist
             const prevButton = document.getElementById('prev-read');
             const nextButton = document.getElementById('next-read');
             
             if (prevButton && nextButton) {
-                prevButton.addEventListener('click', () => navigateRead(-1));
-                nextButton.addEventListener('click', () => navigateRead(1));
+                // Remove any existing listeners first to prevent duplicates
+                const newPrevButton = prevButton.cloneNode(true);
+                const newNextButton = nextButton.cloneNode(true);
+                prevButton.parentNode.replaceChild(newPrevButton, prevButton);
+                nextButton.parentNode.replaceChild(newNextButton, nextButton);
+                
+                // Attach fresh listeners
+                newPrevButton.addEventListener('click', () => {
+                    console.log('Prev button clicked, availableReads:', availableReads.length);
+                    navigateRead(-1);
+                });
+                newNextButton.addEventListener('click', () => {
+                    console.log('Next button clicked, availableReads:', availableReads.length);
+                    navigateRead(1);
+                });
             }
-            
-            displayCurrentRead();
-            updateReadNavigation();
         }
     } else {
         container.innerHTML = `
@@ -2832,7 +3315,7 @@ function switchReadList(listType) {
     }
     
     const readsData = window.siteData?.favoriteReads?.value || window.siteData?.favoriteReads;
-    const annualLists = window.siteData?.annualReadingLists?.value || [];
+    const annualLists = window.siteData?.annualReadingLists?.value || window.siteData?.annualReadingLists || [];
     if (!readsData) return;
     
     currentReadList = listType;
@@ -2844,12 +3327,9 @@ function switchReadList(listType) {
         currentAnnualYear = null;
         currentYearData = null;
         availableReads = readsData.recentReads || readsData.items || [];
-        console.log('Recent reads loaded:', availableReads.length);
+        console.log('Recent reads loaded:', availableReads.length, 'items:', availableReads);
         currentReadIndex = 0; // Start at beginning for recent reads
         console.log('Starting at index:', currentReadIndex);
-        // Show card-based display
-        displayCurrentRead();
-        updateReadNavigation();
         // Need to rebuild the entire reading section to switch from annual list view to card view
         console.log('CALLING showFavoriteReads to rebuild UI');
         const container = document.getElementById('dynamic-content');
@@ -2861,14 +3341,13 @@ function switchReadList(listType) {
         console.log('SWITCHING TO LAST FIVE YEARS - resetting annual state');
         currentAnnualYear = null;
         currentYearData = null;
-        availableReads = readsData.lastFiveYearsReads || [];
-        console.log('Last five years reads loaded:', availableReads.length);
-        // Randomize starting index for last five years
-        currentReadIndex = availableReads.length > 0 ? Math.floor(Math.random() * availableReads.length) : 0;
+        availableReads = Array.isArray(readsData.lastFiveYearsReads) 
+            ? readsData.lastFiveYearsReads 
+            : [];
+        console.log('Last five years reads loaded:', availableReads.length, 'items:', availableReads);
+        // Start at beginning for consistent navigation
+        currentReadIndex = 0;
         console.log('Starting at index:', currentReadIndex);
-        // Show card-based display
-        displayCurrentRead();
-        updateReadNavigation();
         // Need to rebuild the entire reading section to switch from annual list view to card view
         console.log('CALLING showFavoriteReads to rebuild UI');
         const container = document.getElementById('dynamic-content');
@@ -2942,31 +3421,55 @@ function navigateRead(direction) {
 }
 
 function displayCurrentRead() {
-    if (availableReads.length === 0) return;
+    console.log('displayCurrentRead called:', {
+        availableReadsLength: availableReads.length,
+        currentReadIndex: currentReadIndex,
+        currentReadList: currentReadList,
+        currentRead: availableReads[currentReadIndex]
+    });
+    
+    if (availableReads.length === 0) {
+        console.warn('displayCurrentRead: availableReads is empty!');
+        return;
+    }
     
     const currentRead = availableReads[currentReadIndex];
+    if (!currentRead) {
+        console.error('displayCurrentRead: No read at index', currentReadIndex);
+        return;
+    }
+    
     const titleEl = document.getElementById('read-title-rating');
     const authorEl = document.getElementById('read-author');
     const genreRatingEl = document.getElementById('read-genre-rating');
     const summaryEl = document.getElementById('read-summary');
     
+    console.log('displayCurrentRead: Elements found:', {
+        titleEl: !!titleEl,
+        authorEl: !!authorEl,
+        genreRatingEl: !!genreRatingEl,
+        summaryEl: !!summaryEl
+    });
+    
     if (titleEl && authorEl && genreRatingEl && summaryEl && currentRead) {
-        // Only show numbers for recent reads, not last five years or annual lists
-        const titleText = currentReadList === 'recent' 
-            ? `${currentReadIndex + 1}. ${currentRead.title.toLowerCase()}`
-            : currentRead.title.toLowerCase();
+        // Don't show numbers - just the title
+        const titleText = currentRead.title.toLowerCase();
         
         titleEl.textContent = titleText;
         authorEl.textContent = `by ${currentRead.author.toLowerCase()}`;
         
         // annual lists dont always have genre/summary
-        if (currentRead.genre && currentRead.summary) {
-            // Recent/lastFiveYears format with full data
-            genreRatingEl.textContent = `${currentRead.genre.toLowerCase()}, ${currentRead.rating}/5`;
-            summaryEl.textContent = currentRead.summary.toLowerCase();
+        if (currentReadList === 'recent' || currentReadList === 'lastFiveYears') {
+            // Recent/lastFiveYears format - show all available data
+            const genreText = currentRead.genre ? currentRead.genre.toLowerCase() : '';
+            const ratingText = currentRead.rating ? `${currentRead.rating}/5` : '';
+            genreRatingEl.textContent = genreText && ratingText 
+                ? `${genreText}, ${ratingText}` 
+                : (genreText || ratingText || '');
+            summaryEl.textContent = currentRead.summary ? currentRead.summary.toLowerCase() : '';
         } else {
             // Annual lists format with minimal data
-            genreRatingEl.textContent = `${currentRead.rating}/5`;
+            genreRatingEl.textContent = currentRead.rating ? `${currentRead.rating}/5` : '';
             summaryEl.textContent = "";
         }
     }
@@ -2977,8 +3480,22 @@ function updateReadNavigation() {
     const nextButton = document.getElementById('next-read');
     
     if (prevButton && nextButton) {
-        prevButton.disabled = availableReads.length <= 1;
-        nextButton.disabled = availableReads.length <= 1;
+        // Only disable if there's 0 items
+        // With 1+ items, allow navigation (even if it loops back to the same item)
+        const shouldDisable = availableReads.length === 0;
+        prevButton.disabled = shouldDisable;
+        nextButton.disabled = shouldDisable;
+        
+        // Don't use pointerEvents - let disabled attribute handle it
+        // But ensure buttons are visible
+        prevButton.style.opacity = shouldDisable ? '0.5' : '1';
+        nextButton.style.opacity = shouldDisable ? '0.5' : '1';
+        
+        console.log('updateReadNavigation: availableReads.length=', availableReads.length, 
+                    'prevButton.disabled=', prevButton.disabled, 
+                    'nextButton.disabled=', nextButton.disabled,
+                    'currentReadIndex=', currentReadIndex,
+                    'currentReadList=', currentReadList);
     }
 }
 
@@ -3019,13 +3536,30 @@ function displayThisYearReads() {
     const thisYearReadsData = window.siteData?.thisYearReads?.value || window.siteData?.thisYearReads;
     const readContentEl = document.querySelector('.read-content');
     
+    console.log('=== displayThisYearReads DEBUG START ===');
+    console.log('hasThisYearReadsData:', !!thisYearReadsData);
+    console.log('thisYearReadsData:', thisYearReadsData);
+    console.log('thisYearReadsData keys:', thisYearReadsData ? Object.keys(thisYearReadsData) : []);
+    console.log('monthlyReads:', thisYearReadsData?.monthlyReads);
+    console.log('monthlyReads length:', thisYearReadsData?.monthlyReads?.length);
+    console.log('window.siteData.thisYearReads:', window.siteData?.thisYearReads);
+    console.log('window.siteData keys:', window.siteData ? Object.keys(window.siteData) : []);
+    if (thisYearReadsData) {
+        console.log('FULL thisYearReadsData JSON:', JSON.stringify(thisYearReadsData, null, 2));
+    }
+    console.log('=== displayThisYearReads DEBUG END ===');
+    
     if (!readContentEl || !thisYearReadsData) {
+        console.warn('displayThisYearReads: Missing readContentEl or thisYearReadsData');
         return;
     }
     
     const monthlyReads = thisYearReadsData.monthlyReads || [];
     
+    console.log('displayThisYearReads: monthlyReads:', monthlyReads);
+    
     if (monthlyReads.length === 0) {
+        console.warn('displayThisYearReads: No monthly reads found');
         readContentEl.innerHTML = `
             <div class="monthly-reads-container">
                 <p class="no-reads-message">no completed reads found for this year yet...</p>
@@ -3385,12 +3919,26 @@ function showJerseyCollection(container) {
 
 function showCreativeWork(container, type) {
     if (type === 'builds') {
+        const builds = getBuildsFromSiteData(window.siteData);
+        // Carousel sits above the copy, opening on the newest build.
+        const carouselHTML = builds.length ? `
+            <div class="build-swiper-container">
+                <div class="swiper build-swiper">
+                    <div class="swiper-wrapper" id="dynamic-build-carousel">
+                        <!-- Builds will be populated by JavaScript -->
+                    </div>
+                    <div class="swiper-button-next"></div>
+                    <div class="swiper-button-prev"></div>
+                </div>
+            </div>
+        ` : '';
+
         container.innerHTML = `
             <div class="weird-ideas-content">
-                <p class="play-category-description">remember as a kid, being obsessed with making things? this is me, trying to hold onto that. more side quests than side hustles. one part creative wonder, one part disciplined tinkering.</p>
-                
-                <p class="weird-ideas-link">see more at <a href="https://www.weirdlittleideas.com" target="_blank" rel="noopener" class="section-link">weirdlittleideas.com</a></p>
-                
+                ${carouselHTML}
+
+                <p class="play-category-description">more side quests than side hustles: <a href="https://www.weirdlittleideas.com" target="_blank" rel="noopener" class="section-link">weirdlittleideas.com</a></p>
+
                 <div class="weird-ideas-gif">
                     <a href="https://www.weirdlittleideas.com" target="_blank" rel="noopener">
                         <img src="https://weirdlittleideas.com/img/wli-guy-footer.gif" alt="Weird Little Ideas" class="weird-ideas-image" />
@@ -3398,6 +3946,10 @@ function showCreativeWork(container, type) {
                 </div>
             </div>
         `;
+
+        if (builds.length) {
+            waitForReadyThenInitialize(() => initializeBuildCarousel('dynamic-build-carousel'), 'builds');
+        }
     } else if (type === 'music') {
         container.innerHTML = `
             <div class="wait-what-content">
@@ -3413,9 +3965,13 @@ function showCreativeWork(container, type) {
             </div>
         `;
     } else if (type === 'writing') {
+        const latestWriting = getLatestWritingFromSiteData(window.siteData);
+        const latestWritingIntro = latestWriting ?
+            `the most recent piece i wrote was <a href="${escapeHtml(latestWriting.url)}" target="_blank" rel="noopener" class="section-link"><em>${escapeHtml((latestWriting.title || '').toLowerCase())}</em></a>. ` :
+            '';
         container.innerHTML = `
             <div class="writing-content">
-                <p class="play-category-description">ideas that pique my interest and feel worth thinking more about. strong emphasis on interesting human behavior, where trends are heading, and our collective experiences and cultural touchstones. all viewed through the lens of the internet.</p>
+                <p class="play-category-description">${latestWritingIntro}ideas that pique my interest and feel worth thinking more about. strong emphasis on interesting human behavior, where trends are heading, and our collective experiences and cultural touchstones. all viewed through the lens of the internet.</p>
                 
                 <p class="writing-link">read <a href="https://ckubal.substack.com/" target="_blank" rel="noopener" class="section-link">things i think about</a></p>
                 
@@ -3432,7 +3988,9 @@ function showCreativeWork(container, type) {
                 <p class="play-category-description">nearly 300 cartoons paired with rap lyrics for comedic effect. created and sold physical copies with proceeds benefiting urban gateways. unedited parodies intended for mature audiences who appreciate both art and hip hop.</p>
                 
                 <p class="cirque-disobey-link">download free <a href="https://weirdlittleideas.com/img/objects/cirquedisobey/cirquedisobey_v2.pdf" target="_blank" rel="noopener" class="section-link">cirque disobey pdf</a></p>
-                
+
+                <p class="cirque-disobey-buy">or email me if you'd like a physical copy for $20 (contact's at the bottom)</p>
+
                 <div class="cirque-disobey-image">
                     <a href="https://weirdlittleideas.com/img/objects/cirquedisobey/cirquedisobey_v2.pdf" target="_blank" rel="noopener">
                         <img src="assets/cirque-disobey.png" alt="Cirque Disobey Book Cover" class="cirque-disobey-book" />
@@ -3512,7 +4070,10 @@ function updateNavigationButtons() {
 
 function initializeLists(data) {
     // Extract taste music lists from API data
-    const tasteLists = data.tasteMusicLists?.value || data.tasteMusicLists;
+    // Handle both formats: {value: [...]} or directly [...]
+    const tasteLists = Array.isArray(data.tasteMusicLists) 
+        ? data.tasteMusicLists 
+        : (data.tasteMusicLists?.value || data.tasteMusicLists);
     
     if (tasteLists && Array.isArray(tasteLists)) {
         availableLists = tasteLists;
@@ -3691,15 +4252,17 @@ function updatePodcastNavigation() {
 // Function to initialize everything after ensuring resources are loaded
 function initializeEverything() {
     initializeLoading();
-    initializeBioNavigation();
+    // Highlight listeners must exist before bio navigation runs - it opens a
+    // default panel by triggering one of them.
     initializeDynamicContent();
+    initializeBioNavigation();
     initializeExperienceItems();
     initializePlayCategories();
     initializeTasteCategories();
     initializeExpandButtons();
     initializeShoeCollection();
     initializeCollectionToggle();
-    
+
     // Fetch data after UI is initialized
     fetchData();
     

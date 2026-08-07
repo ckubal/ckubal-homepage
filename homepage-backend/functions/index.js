@@ -140,6 +140,210 @@ async function getSpotifyListeningStats() {
     }
 }
 
+const SUBSTACK_RSS_URL = "https://ckubal.substack.com/feed";
+
+/**
+ * Latest public post from Substack RSS (newest <item> is first).
+ * @return {Promise<null|{title: string, url: string, publishedAt: Date, fetchedAt: Date}>}
+ */
+async function getLatestSubstackPost() {
+    functions.logger.info("Fetching latest Substack post from RSS...");
+    try {
+        const response = await axios.get(SUBSTACK_RSS_URL, {
+            timeout: 20000,
+            headers: {
+                "User-Agent": "CharlieHomepage/1.0 (+https://charliekubal.com)",
+                "Accept": "application/rss+xml, application/xml, text/xml, */*",
+            },
+            maxContentLength: 12 * 1024 * 1024,
+        });
+        const xml = typeof response.data === "string" ? response.data : String(response.data);
+        const itemMatch = xml.match(/<item>([\s\S]*?)<\/item>/i);
+        if (!itemMatch) {
+            functions.logger.warn("No RSS <item> found in Substack feed");
+            return null;
+        }
+        const item = itemMatch[1];
+        const titleMatch = item.match(/<title>(?:<!\[CDATA\[([\s\S]*?)\]\]>|([^<]+))<\/title>/i);
+        const linkMatch = item.match(/<link>([^<\s]+)<\/link>/i);
+        const pubMatch = item.match(/<pubDate>([^<]+)<\/pubDate>/i);
+        const titleRaw = (titleMatch && (titleMatch[1] || titleMatch[2]) || "").trim().replace(/\s+/g, " ");
+        const url = (linkMatch && linkMatch[1] || "").trim();
+        const publishedAt = pubMatch ? new Date(pubMatch[1].trim()) : null;
+        if (!titleRaw || !url || !publishedAt || Number.isNaN(publishedAt.getTime())) {
+            functions.logger.warn("Substack RSS parse incomplete", {
+                hasTitle: !!titleRaw,
+                hasUrl: !!url,
+                pubDate: pubMatch && pubMatch[1],
+            });
+            return null;
+        }
+        let hostname = "";
+        try {
+            hostname = new URL(url).hostname || "";
+        } catch {
+            functions.logger.warn("Substack RSS link not a valid URL", url);
+            return null;
+        }
+        if (!hostname.endsWith("substack.com")) {
+            functions.logger.warn("Unexpected Substack link host", hostname);
+            return null;
+        }
+        return {
+            title: titleRaw,
+            url: url,
+            publishedAt: publishedAt,
+            fetchedAt: new Date(),
+        };
+    } catch (error) {
+        functions.logger.error("Error fetching Substack RSS:", error.response?.status || error.message);
+        return null;
+    }
+}
+
+const WEIRD_LITTLE_IDEAS_URL = "https://weirdlittleideas.com";
+
+/**
+ * Decode a small set of common HTML entities and strip any residual tags.
+ * @param {string} str Raw inner HTML text.
+ * @return {string} Cleaned plain text.
+ */
+function cleanHtmlText(str) {
+    return (str || "")
+        .replace(/<[^>]+>/g, "")
+        .replace(/&amp;/g, "&")
+        .replace(/&#0?39;/g, "'")
+        .replace(/&apos;/g, "'")
+        .replace(/&quot;/g, "\"")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+/**
+ * Find the href of the <a class="idea-item-link-wrapper"> wrapping the .idea-item
+ * that starts at itemStart, if there is one. Linked builds render as
+ * <a ...><div class="idea-item">, unlinked ones as a bare <div class="idea-item">.
+ *
+ * We look backwards from the item for the nearest opening <a>. If a </a> sits
+ * between that anchor and this item, the anchor belongs to the *previous* build,
+ * so this one is unlinked.
+ * @param {string} html Full page HTML.
+ * @param {number} itemStart Index where this .idea-item div opens.
+ * @return {string} The wrapper href, or "" when the build has no link.
+ */
+function findBuildWrapperHref(html, itemStart) {
+    const win = html.slice(Math.max(0, itemStart - 400), itemStart);
+    const aIdx = win.lastIndexOf("<a ");
+    if (aIdx === -1) return "";
+    const fromA = win.slice(aIdx);
+    if (/<\/a>/i.test(fromA)) return ""; // that anchor already closed - not ours
+    if (!/idea-item-link-wrapper/i.test(fromA)) return "";
+    const hrefMatch = fromA.match(/href="([^"]+)"/i);
+    return hrefMatch ? hrefMatch[1].trim() : "";
+}
+
+/**
+ * Fetch and parse the "BUILDS" from weirdlittleideas.com, newest first.
+ * The page is static HTML: each build is a <div class="idea-item"> holding
+ * .idea-identifier ("BUILD 012"), .idea-title, .idea-subtext, .idea-tags and an
+ * image, optionally wrapped in <a class="idea-item-link-wrapper">.
+ *
+ * Every build is returned, linked or not, to stay consistent with what
+ * weirdlittleideas.com itself shows. Builds without a link come back with
+ * url: "" and the frontend renders them as non-clickable cards.
+ *
+ * A title may carry a parenthetical status span, e.g. "magic 8 (in review)".
+ * That is split out into `status` so the title stays clean.
+ * @return {Promise<Array<{identifier: string, number: number, title: string,
+ *   status: string, subtext: string, url: string, image: string, tags: string[]}>>}
+ */
+async function getWeirdLittleIdeasBuilds() {
+    functions.logger.info("Fetching builds from weirdlittleideas.com...");
+    try {
+        const response = await axios.get(WEIRD_LITTLE_IDEAS_URL, {
+            timeout: 20000,
+            headers: {
+                "User-Agent": "CharlieHomepage/1.0 (+https://charliekubal.com)",
+                "Accept": "text/html,application/xhtml+xml,*/*",
+            },
+            maxContentLength: 12 * 1024 * 1024,
+        });
+        const html = typeof response.data === "string" ? response.data : String(response.data);
+
+        // Resolve relative build links/images against the site origin.
+        const resolve = (u) => {
+            if (!u) return "";
+            if (/^https?:\/\//i.test(u)) return u;
+            return `${WEIRD_LITTLE_IDEAS_URL}/${u.replace(/^\/+/, "")}`;
+        };
+
+        // Walk every .idea-item div. The <a> wrapper is optional, so we can't key
+        // off it. Each item's segment runs until the next item opens.
+        // ("<div" guards against matching the idea-item-link-wrapper anchor.)
+        const itemOpenRe = /<div\b[^>]*\bclass="[^"]*\bidea-item\b[^"]*"[^>]*>/gi;
+        const starts = [];
+        let openMatch;
+        while ((openMatch = itemOpenRe.exec(html)) !== null) starts.push(openMatch.index);
+        starts.push(html.length);
+
+        const builds = [];
+        for (let i = 0; i < starts.length - 1; i++) {
+            const seg = html.slice(starts[i], starts[i + 1]);
+
+            const idMatch = seg.match(/class="idea-identifier"[^>]*>\s*([^<]+?)\s*</i);
+            const identifier = idMatch ? cleanHtmlText(idMatch[1]) : "";
+            if (!/^BUILD\b/i.test(identifier)) continue; // skip reflections/objects/etc.
+
+            const numMatch = identifier.match(/(\d+)/);
+            const number = numMatch ? parseInt(numMatch[1], 10) : 0;
+
+            // Split a trailing "(status)" span out of the title, e.g. "magic 8 (in review)".
+            const titleMatch = seg.match(/class="idea-title"[^>]*>([\s\S]*?)<\/h3>/i);
+            const titleHtml = titleMatch ? titleMatch[1] : "";
+            const statusMatch = titleHtml.match(/<span\b[^>]*>\s*\(([^)]*)\)\s*<\/span>/i);
+            const status = statusMatch ? cleanHtmlText(statusMatch[1]) : "";
+            const title = cleanHtmlText(statusMatch ? titleHtml.replace(statusMatch[0], "") : titleHtml);
+            if (!title) continue;
+
+            const subtextMatch = seg.match(/class="idea-subtext"[^>]*>([\s\S]*?)<\/p>/i);
+            const imgMatch = seg.match(/<img[^>]*\bsrc="([^"]+)"/i);
+
+            const tags = [];
+            const tagsBlock = seg.match(/class="idea-tags"[^>]*>([\s\S]*?)<\/div>/i);
+            if (tagsBlock) {
+                const tagRe = /class="tag"[^>]*>([\s\S]*?)<\/span>/gi;
+                let tagMatch;
+                while ((tagMatch = tagRe.exec(tagsBlock[1])) !== null) {
+                    const t = cleanHtmlText(tagMatch[1]);
+                    if (t) tags.push(t);
+                }
+            }
+
+            builds.push({
+                identifier,
+                number,
+                title,
+                status,
+                subtext: subtextMatch ? cleanHtmlText(subtextMatch[1]) : "",
+                url: resolve(findBuildWrapperHref(html, starts[i])),
+                image: resolve(imgMatch ? imgMatch[1].trim() : ""),
+                tags,
+            });
+        }
+
+        // Newest first by build number (DOM order is already newest-first, but be safe).
+        builds.sort((a, b) => b.number - a.number);
+        functions.logger.info(`Parsed ${builds.length} builds; latest: ${builds[0]?.title || "none"}`);
+        return builds;
+    } catch (error) {
+        functions.logger.error("Error fetching weirdlittleideas builds:", error.response?.status || error.message);
+        return [];
+    }
+}
+
 /* eslint-disable no-unused-vars */
 async function getWhoopData() {
     functions.logger.info("Fetching WHOOP data...");
@@ -270,21 +474,36 @@ async function getBookData() {
         let currentBook = null;
 
         // Start from row 25 (0-indexed = 24) and go up to row 500 or end of data
+        functions.logger.info(`Scanning rows 25-500 for "In progress" status (total rows: ${rows.length})`);
+        let checkedRows = 0;
         for (let i = 24; i < Math.min(500, rows.length); i++) {
             const row = rows[i];
-            const columns = row.split(",");
+            const columns = parseCSVRow(row);
 
             // Status is in column N (0-indexed = 13)
             const status = columns[13] ? columns[13].trim().replace(/"/g, "") : "";
 
-            if (status === "In progress") {
+            // Debug first few rows to see what we're getting
+            if (i < 30 && status) {
+                const title = columns[10] ? columns[10].trim().replace(/"/g, "") : "";
+                functions.logger.info(`Row ${i + 1}: Status="${status}", Title="${title}"`);
+            }
+
+            // Check for various status formats (case-insensitive)
+            const normalizedStatus = status.toLowerCase();
+            if (normalizedStatus === "in progress" || normalizedStatus === "in-progress") {
                 currentBook = columns;
-                functions.logger.info(`Found book in progress at row ${i + 1}: ${columns[10]} by ${columns[11]}`);
+                const title = columns[10] ? columns[10].trim().replace(/"/g, "") : "";
+                const author = columns[11] ? columns[11].trim().replace(/"/g, "") : "";
+                functions.logger.info(`Found book in progress at row ${i + 1}: "${title}" by ${author}`);
                 break;
             }
+            checkedRows++;
         }
+        functions.logger.info(`Checked ${checkedRows} rows for "In progress" status`);
 
         if (!currentBook) {
+            functions.logger.warn("No book found with 'In progress' status in rows 25-500");
             return { title: "No book in progress", author: "", fetchedAt: new Date() };
         }
 
@@ -388,21 +607,25 @@ async function getTasteMusicLists() {
         if (rows.length >= 100) {
             // Get titles from row 100 (0-indexed = 99) for columns A and B
             const headerRow = rows[99];
-            const headerColumns = headerRow.split(",");
+            const headerColumns = parseCSVRow(headerRow);
             const titleA = headerColumns[0] ? headerColumns[0].trim().replace(/"/g, "") : "";
             const titleB = headerColumns[1] ? headerColumns[1].trim().replace(/"/g, "") : "";
+
+            functions.logger.info(`Taste lists headers: titleA="${titleA}", titleB="${titleB}"`);
 
             // Get rappers from column A, rows 101-110
             const rappersList = [];
             for (let i = 100; i < Math.min(111, rows.length); i++) {
                 const row = rows[i];
-                const columns = row.split(",");
+                const columns = parseCSVRow(row);
                 const rapper = columns[0] ? columns[0].trim().replace(/"/g, "") : "";
 
                 if (rapper && rapper !== "F" && rapper.length > 0) {
                     rappersList.push(rapper.toLowerCase());
                 }
             }
+
+            functions.logger.info(`Found ${rappersList.length} rappers`);
 
             if (titleA && rappersList.length > 0) {
                 tasteLists.push({
@@ -415,13 +638,15 @@ async function getTasteMusicLists() {
             const albumsList = [];
             for (let i = 100; i < Math.min(111, rows.length); i++) {
                 const row = rows[i];
-                const columns = row.split(",");
+                const columns = parseCSVRow(row);
                 const album = columns[1] ? columns[1].trim().replace(/"/g, "") : "";
 
                 if (album && album.length > 0) {
                     albumsList.push(album.toLowerCase());
                 }
             }
+
+            functions.logger.info(`Found ${albumsList.length} albums`);
 
             if (titleB && albumsList.length > 0) {
                 // Create albums with Spotify URLs and images
@@ -557,20 +782,23 @@ async function searchSpotifyAlbum(albumText) {
 }
 
 async function getThisYearReads() {
-    functions.logger.info("Fetching this year reads from 2026 sheet I24:N90 range...");
+    functions.logger.info("Fetching this year reads from Recents sheet I24:N90 range...");
 
-    // Use 2026 sheet GID for "this year" data
-    const gid = "393005093";
+    // Use Recents sheet GID for "this year" data (same as getBookData)
+    // The Recents sheet has columns I, K, L, N with the current year's reads
+    const gid = "1869146893"; // Recents sheet GID
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/" +
         "2PACX-1vQjPR6atSEfc5ItyFLmzEzabJeXG_Tit6_Bbmwu31_JptS4trGGtDR0zla6Q99yNtK9j9VS3VVsf5Ug/" +
         `pub?gid=${gid}&single=true&output=csv`;
 
     try {
+        functions.logger.info(`Fetching CSV from URL: ${csvUrl}`);
         const response = await axios.get(csvUrl, {
             maxRedirects: 5,
             timeout: 10000,
         });
         const rows = response.data.trim().split("\n");
+        functions.logger.info(`Fetched CSV, total rows: ${rows.length}`);
 
         const booksByMonth = {};
         const monthNames = ["january", "february", "march", "april", "may", "june",
@@ -579,49 +807,159 @@ async function getThisYearReads() {
         // Process rows 24-90 (I24:N90 range) for 2026 sheet
         // Column mapping: I=month (index 8), K=title (index 10), L=author (index 11), N=status (index 13)
         let debugCount = 0;
+        let totalRowsProcessed = 0;
+        let rowsWithData = 0;
+        let rowsSkippedNoTitleAuthor = 0;
+        let rowsSkippedNotCompleted = 0;
+        let rowsSkippedNoMonth = 0;
+        let rowsAdded = 0;
+
+        // Debug: Log row 1 first to see if columns J-N are present
+        if (rows.length > 0) {
+            const row1Cols = parseCSVRow(rows[0]);
+            functions.logger.info(`Row 1 has ${row1Cols.length} columns`);
+            const colLabels = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O"];
+            const row1Data = row1Cols.map((val, idx) => {
+                const label = colLabels[idx] || `Col${idx}`;
+                return `${label}(${idx})='${val}'`;
+            }).join(", ");
+            functions.logger.info(`Row 1 all columns: ${row1Data}`);
+        }
 
         // Debug: Log the first few rows to understand the structure
+        // The CSV export might have fewer columns than expected
         if (rows.length > 23) {
-            functions.logger.info(`Recents sheet has ${rows.length} total rows, checking rows 24-90`);
-            for (let i = 23; i < Math.min(29, rows.length); i++) {
+            functions.logger.info(`2026 sheet has ${rows.length} total rows, checking rows 24-90`);
+            for (let i = 23; i < Math.min(30, rows.length); i++) {
                 const cols = parseCSVRow(rows[i]);
                 functions.logger.info(`Row ${i+1} has ${cols.length} columns`);
-                if (cols.length >= 14) {
-                    functions.logger.info(
-                        `Row ${i+1} Col I(8)='${cols[8]}' K(10)='${cols[10]}' ` +
-                        `L(11)='${cols[11]}' N(13)='${cols[13]}'`,
-                    );
-                } else if (cols.length > 0) {
-                    // Log what we have for debugging
-                    functions.logger.info(`Row ${i+1} data: ${cols.slice(0, Math.min(15, cols.length)).join(" | ")}`);
-                }
+                // Log all columns with their indices to understand the structure
+                const colLabels = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O"];
+                const colData = cols.map((val, idx) => {
+                    const label = colLabels[idx] || `Col${idx}`;
+                    return `${label}(${idx})='${val}'`;
+                }).join(", ");
+                functions.logger.info(`Row ${i+1} all columns: ${colData}`);
             }
         }
 
         for (let i = 23; i < Math.min(90, rows.length); i++) { // 0-indexed, so row 24 = index 23
+            const row = rows[i];
             const columns = parseCSVRow(rows[i]);
 
-            // Column mapping for recents tab I24:N90:
-            // I = month number (index 8), K = title (index 10), L = author (index 11), N = status (index 13)
-            const monthNumber = columns[8] ? parseInt(columns[8].trim()) : 0;
-            const title = columns[10] ? columns[10].trim().toLowerCase() : ""; // Column K = title
-            const author = columns[11] ? columns[11].trim().toLowerCase() : ""; // Column L = author
-            const status = columns[13] ? columns[13].trim() : ""; // Column N = status
+            // Column mapping for 2026 sheet I24:N90:
+            // Expected: I = month (index 8), K = title (index 10), L = author (index 11), N = status (index 13)
+            // BUT: CSV export only includes columns up to the last column with data
+            // If the 2026 sheet only has 9 columns (A-I), then K, L, N don't exist in the CSV
+            //
+            // Solution: The Google Sheet needs to have data in columns J, K, L, M, N in an early row
+            // OR we need to find where the data actually is in the 9-column CSV
+            //
+            // For now, log all columns to see what we actually have
+            if (i < 30 && columns.length > 0) {
+                const allCols = columns.map((val, idx) => {
+                    const colLabel = String.fromCharCode(65 + idx); // A, B, C, ...
+                    return `${colLabel}(${idx})="${val}"`;
+                }).join(", ");
+                functions.logger.info(`Row ${i+1} all columns (${columns.length} total): ${allCols}`);
+            }
 
-            // Debug logging for first 5 rows
-            if (debugCount < 5 && title) {
+            // Try to access columns - if CSV has < 14 columns, we can't access K, L, N
+            const monthNumber = columns.length > 8 ? (columns[8] ? parseInt(columns[8].trim()) : 0) : 0;
+            let title = columns.length > 10 ? (columns[10] ? columns[10].trim() : "") : "";
+            const authorRaw = columns.length > 11 ? (columns[11] ? columns[11].trim() : "") : "";
+            const status = columns.length > 13 ? (columns[13] ? columns[13].trim() : "") : "";
+
+            // If CSV doesn't have enough columns, log detailed warning
+            if (columns.length < 14) {
+                if (i < 30) {
+                    const lastCol = String.fromCharCode(65 + columns.length - 1);
+                    functions.logger.warn(
+                        `Row ${i+1}: CSV only has ${columns.length} columns (A-${lastCol}). ` +
+                        "Cannot access columns K(10), L(11), N(13). " +
+                        "The Google Sheet needs data in columns J, K, L, M, N in an early row " +
+                        "(e.g., row 1) so they are included in the CSV export.",
+                    );
+                }
+                // Skip this row since we can't get the data
+                continue;
+            }
+
+            // Clean up title - remove leading numbers/ratings if present (e.g., "4 11th Hour" -> "11th Hour")
+            // Handle both single and multiple digits at the start
+            const originalTitle = title;
+            title = title.replace(/^\d+\s+/, "").trim();
+            if (!title && originalTitle) {
+                // If title became empty after removing numbers, use original (edge case)
+                title = originalTitle;
+            }
+            title = title.toLowerCase();
+
+            // Clean up author - remove genre suffix (F/NF) if present
+            const author = authorRaw.replace(/\s+(F|NF|Fiction|Non-Fiction|Nonfiction)$/i, "").trim().toLowerCase();
+
+            // Skip rows with #N/A in the specific fields we care about
+            // Don't skip the whole row if #N/A is in other columns (like A24)
+            if (title === "#n/a" || author === "#n/a" || status === "#n/a" ||
+                title.includes("#n/a") || author.includes("#n/a") || status.includes("#n/a")) {
+                functions.logger.info(`Row ${i+1} skipped: contains #N/A in title/author/status fields`);
+                continue;
+            }
+
+            // Skip if we don't have the required data (after cleanup)
+            if (!title || !author) {
+                if (i < 30) {
+                    functions.logger.info(
+                        `Row ${i+1} skipped: missing title or author (title='${title}', author='${author}')`,
+                    );
+                }
+                continue;
+            }
+
+            // Debug logging for all rows with title/author data
+            if (title || author) {
+                const month = monthNumber > 0 && monthNumber <= 12 ? monthNames[monthNumber - 1] : "";
+                const normalizedStatus = status.toLowerCase().trim();
+                const isCompleted = normalizedStatus === "completed" ||
+                                    normalizedStatus === "complete" ||
+                                    normalizedStatus === "done" ||
+                                    normalizedStatus === "finished" ||
+                                    normalizedStatus === "read" ||
+                                    status === "✓" ||
+                                    status.trim() === "✓";
                 functions.logger.info(
-                    `Row ${i+1}: month=${monthNumber}, status='${status}', title='${title}'`,
+                    `Row ${i+1}: monthNumber=${monthNumber}, month='${month}', status='${status}' ` +
+                    `(normalized='${normalizedStatus}', isCompleted=${isCompleted}), ` +
+                    `title='${title}', author='${author}', columns.length=${columns.length}`,
                 );
-                debugCount++;
+                if (debugCount < 30) debugCount++;
             }
 
             // Convert month number to month name
             const month = monthNumber > 0 && monthNumber <= 12 ? monthNames[monthNumber - 1] : "";
 
-            // Only include completed books - check various status formats (including capital C)
-            const isCompleted = status === "Completed" || status === "completed" ||
-                                status === "complete" || status === "✓" || status === "done";
+            // Only include completed books - check various status formats (case-insensitive)
+            const normalizedStatus = status.toLowerCase().trim();
+            const isCompleted = normalizedStatus === "completed" ||
+                                normalizedStatus === "complete" ||
+                                normalizedStatus === "done" ||
+                                normalizedStatus === "finished" ||
+                                normalizedStatus === "read" ||
+                                status === "✓" ||
+                                status.trim() === "✓";
+
+            // Debug logging for first few rows with status
+            if (debugCount < 10 && status) {
+                functions.logger.info(
+                    `Row ${i+1}: status="${status}" (normalized="${normalizedStatus}"), ` +
+                    `isCompleted=${isCompleted}, title="${title}", month="${month}"`,
+                );
+                debugCount++;
+            }
+
+            totalRowsProcessed++;
+            if (title && author) rowsWithData++;
+
             if (isCompleted && title && month) {
                 if (!booksByMonth[month]) {
                     booksByMonth[month] = [];
@@ -632,14 +970,58 @@ async function getThisYearReads() {
                     author: author,
                     month: month,
                 });
+                rowsAdded++;
+                functions.logger.info(`Added completed book: "${title}" by ${author} (${month})`);
+            } else if (title) {
+                // Log books that have title but aren't completed or missing month
+                if (!isCompleted) {
+                    rowsSkippedNotCompleted++;
+                    if (i < 30) {
+                        const msg = `Row ${i+1}: Book "${title}" not included - ` +
+                            `status="${status}" (isCompleted=${isCompleted})`;
+                        functions.logger.info(msg);
+                    }
+                } else if (!month) {
+                    rowsSkippedNoMonth++;
+                    if (i < 30) {
+                        functions.logger.info(
+                            `Row ${i+1}: Book "${title}" not included - missing month (monthNumber=${monthNumber})`,
+                        );
+                    }
+                }
+            } else {
+                rowsSkippedNoTitleAuthor++;
             }
         }
+
+        const summaryMsg =
+            `Processing summary: totalRowsProcessed=${totalRowsProcessed}, ` +
+            `rowsWithData=${rowsWithData}, rowsAdded=${rowsAdded}, ` +
+            `rowsSkippedNotCompleted=${rowsSkippedNotCompleted}, ` +
+            `rowsSkippedNoMonth=${rowsSkippedNoMonth}, ` +
+            `rowsSkippedNoTitleAuthor=${rowsSkippedNoTitleAuthor}`;
+        functions.logger.info(summaryMsg);
 
         // Convert to array and sort by month (most recent first)
         const monthlyReads = [];
         const currentMonth = new Date().getMonth(); // 0-11
+        const currentYear = new Date().getFullYear();
+
+        // Log all months that have books
+        const booksByMonthKeys = Object.keys(booksByMonth).join(", ");
+        functions.logger.info(
+            `Current date: ${currentYear}-${currentMonth + 1}, booksByMonth keys: ${booksByMonthKeys}`,
+        );
+        Object.keys(booksByMonth).forEach((month) => {
+            const bookTitles = booksByMonth[month].map((b) => b.title);
+            functions.logger.info(
+                `Month ${month} has ${booksByMonth[month].length} books: ${JSON.stringify(bookTitles)}`,
+            );
+        });
 
         // Add months in reverse order (most recent first)
+        // Include all months from current month back to January
+        // If we're in 2026, include all months from current month back
         for (let i = currentMonth; i >= 0; i--) {
             const monthName = monthNames[i];
             if (booksByMonth[monthName] && booksByMonth[monthName].length > 0) {
@@ -647,15 +1029,27 @@ async function getThisYearReads() {
                     month: monthName,
                     books: booksByMonth[monthName].reverse(), // Most recent books first within month
                 });
+                functions.logger.info(
+                    `Added month ${monthName} with ${booksByMonth[monthName].length} books`,
+                );
+            } else {
+                functions.logger.info(`Skipping month ${monthName} - no books or empty array`);
             }
         }
 
-        functions.logger.info(`Found ${monthlyReads.length} months with completed reads`);
-        return {
+        const totalBooks = Object.values(booksByMonth).flat().length;
+        functions.logger.info(
+            `Found ${monthlyReads.length} months with completed reads, total books: ${totalBooks}`,
+        );
+
+        const result = {
             type: "thisYear",
             year: new Date().getFullYear(),
             monthlyReads: monthlyReads,
         };
+
+        functions.logger.info(`getThisYearReads returning: ${JSON.stringify(result, null, 2)}`);
+        return result;
     } catch (error) {
         functions.logger.error("Error fetching this year reads:", error);
         return null;
@@ -780,10 +1174,13 @@ async function getAnnualReadingLists() {
                     }
                 }
 
-                // Sort by month descending for 2025, keep original order for other years
-                if (year === "2025") {
-                    booksWithMonth.sort((a, b) => b.month - a.month);
-                }
+                // Sort by rating descending (highest first) for all years
+                // Parse rating as float for proper numeric comparison (handles "4.5", "5", etc.)
+                booksWithMonth.sort((a, b) => {
+                    const ratingA = parseFloat(a.rating) || 0;
+                    const ratingB = parseFloat(b.rating) || 0;
+                    return ratingB - ratingA; // Descending order (highest first)
+                });
 
                 // Group into fiction/nonfiction
                 // Normalize genre values: handle "F"/"NF", "fiction"/"non-fiction", "fiction"/"nonfiction", etc.
@@ -826,39 +1223,64 @@ async function getAnnualReadingLists() {
                             `Author: "${booksWithMonth[0].author}", ` +
                             `Genre: "${booksWithMonth[0].genre}"`,
                         );
+                    } else {
+                        functions.logger.warn("2025 Debug: No books parsed from 2025 sheet!");
                     }
                 }
 
                 // Create lists for each genre if they have books
+                const yearNum = parseInt(year);
                 if (fictionBooks.length > 0) {
-                    allYearLists.push({
+                    const listObj = {
                         title: `${year} fiction`,
-                        year: parseInt(year),
+                        year: yearNum,
                         type: "fiction",
                         page: 1,
                         totalPages: 1,
                         items: fictionBooks,
                         startNumber: 1,
-                    });
+                    };
+                    functions.logger.info(
+                        `${year}: Creating fiction list with year=${yearNum}`,
+                    );
+                    allYearLists.push(listObj);
+                } else {
+                    functions.logger.info(
+                        `${year}: No fiction books found, skipping fiction list`,
+                    );
                 }
 
                 if (nonfictionBooks.length > 0) {
-                    allYearLists.push({
+                    const listObj = {
                         title: `${year} nonfiction`,
-                        year: parseInt(year),
+                        year: yearNum,
                         type: "nonfiction",
                         page: 1,
                         totalPages: 1,
                         items: nonfictionBooks,
                         startNumber: 1,
-                    });
+                    };
+                    functions.logger.info(
+                        `${year}: Creating nonfiction list with year=${yearNum}`,
+                    );
+                    allYearLists.push(listObj);
+                } else {
+                    functions.logger.info(
+                        `${year}: No nonfiction books found, skipping nonfiction list`,
+                    );
                 }
             } catch (yearError) {
-                functions.logger.error(`Error fetching data for year ${year}:`, yearError.message);
+                functions.logger.error(
+                    `Error fetching data for year ${year} (GID ${gid}):`,
+                    yearError.message,
+                );
+                functions.logger.error("Error stack:", yearError.stack);
             }
         }
 
         functions.logger.info(`Found ${allYearLists.length} annual reading lists total`);
+        const yearsInLists = [...new Set(allYearLists.map((list) => list.year))];
+        functions.logger.info(`Years in lists: ${yearsInLists.join(", ")}`);
         return allYearLists;
     } catch (error) {
         functions.logger.error("Error fetching annual reading lists:", error);
@@ -1068,8 +1490,13 @@ async function getFavoriteReads() {
             }
 
             // Recent Favs: Get books from C1:G10 (rows 0-9, columns C-G)
+            // But also check A24+ (rows 23+) for 2026/2025 books
             // Column mapping: C=rating (index 2), D=title (index 3),
             // E=author (index 4), F=summary (index 5), G=genre (index 6)
+            // For A24+ range: A=year (index 0), C=rating (index 2), D=title (index 3), etc.
+            functions.logger.info("Fetching recent favs from C1:G10 and A24+");
+
+            // First, try C1:G10 (rows 0-9)
             for (let i = 0; i < Math.min(10, rows.length); i++) {
                 const row = rows[i];
                 const columns = parseCSVRow(row);
@@ -1080,15 +1507,28 @@ async function getFavoriteReads() {
                 const summary = columns[5] ? columns[5].trim().replace(/"/g, "") : "";
                 const genre = columns[6] ? columns[6].trim().replace(/"/g, "") : "";
 
-                functions.logger.info(`Row ${i} (sheet row ${i+1}): Title="${bookTitle}", Author="${author}"`);
+                // Skip rows with #N/A or error values
+                if (bookTitle === "#N/A" || bookTitle === "#N/A" ||
+                    rating === "#N/A" || author === "#N/A" ||
+                    bookTitle.toLowerCase().includes("#n/a") ||
+                    rating.toLowerCase().includes("#n/a")) {
+                    functions.logger.info(`Row ${i} skipped: contains #N/A error`);
+                    continue;
+                }
 
-                // Stop if we hit a gap (empty title)
+                functions.logger.info(
+                    `Row ${i} (sheet row ${i+1}): ` +
+                    `Title="${bookTitle}", Author="${author}", Rating="${rating}"`,
+                );
+
+                // Stop if we hit a gap (empty title) - but only if it's truly empty, not an error
                 if (!bookTitle || bookTitle.length === 0) {
                     functions.logger.info(`Stopping at row ${i} due to empty title`);
                     break;
                 }
 
-                if (author) { // Only require author, make rating and genre optional
+                // Require both title and author for a valid book entry
+                if (bookTitle && author) {
                     recentReads.push({
                         title: bookTitle.toLowerCase(),
                         author: author.toLowerCase(),
@@ -1096,8 +1536,69 @@ async function getFavoriteReads() {
                         summary: summary || "",
                         genre: genre || "",
                     });
+                    functions.logger.info(`Added recent read: "${bookTitle}" by ${author}`);
+                } else {
+                    functions.logger.warn(
+                        `Row ${i} skipped: missing title or author (title="${bookTitle}", author="${author}")`,
+                    );
                 }
             }
+
+            // Also check A24+ (rows 23+) for 2026/2025 books, but only check about 15 rows
+            // This range has: A=year, B=month, C=rating, D=title, E=author, F=summary/genre
+            // Stop after checking ~15 rows from A24 to avoid duplicates and going too far
+            const maxRow = Math.min(23 + 15, rows.length); // Check rows 24-38 (about 15 rows)
+            for (let i = 23; i < maxRow; i++) {
+                const row = rows[i];
+                const columns = parseCSVRow(row);
+
+                // Skip rows with #N/A errors
+                const year = columns[0] ? columns[0].trim().replace(/"/g, "") : "";
+                const rating = columns[2] ? columns[2].trim().replace(/"/g, "") : "";
+                const bookTitle = columns[3] ? columns[3].trim().replace(/"/g, "") : "";
+                const author = columns[4] ? columns[4].trim().replace(/"/g, "") : "";
+                const summary = columns[5] ? columns[5].trim().replace(/"/g, "") : "";
+                const genre = columns[6] ? columns[6].trim().replace(/"/g, "") : "";
+
+                // Skip #N/A errors
+                if (year === "#N/A" || rating === "#N/A" || bookTitle === "#N/A" ||
+                    author === "#N/A" || year.toLowerCase().includes("#n/a") ||
+                    rating.toLowerCase().includes("#n/a") ||
+                    bookTitle.toLowerCase().includes("#n/a") ||
+                    author.toLowerCase().includes("#n/a")) {
+                    functions.logger.info(`Row ${i+1} skipped: contains #N/A error`);
+                    continue;
+                }
+
+                // Only process rows with year 2025 or 2026
+                const yearNum = parseInt(year);
+                if (isNaN(yearNum) || (yearNum !== 2025 && yearNum !== 2026)) {
+                    // If we've passed valid data and hit invalid year, we might be done
+                    // But continue in case there are more valid entries later
+                    continue;
+                }
+
+                // Stop if we hit a completely empty row (no year, no title)
+                if (!year && !bookTitle) {
+                    functions.logger.info(`Stopping at row ${i+1} due to empty row`);
+                    break;
+                }
+
+                // Require both title and author for a valid book entry
+                if (bookTitle && author && yearNum) {
+                    recentReads.push({
+                        title: bookTitle.toLowerCase(),
+                        author: author.toLowerCase(),
+                        rating: rating || "",
+                        summary: summary || "",
+                        genre: genre || "",
+                    });
+                    functions.logger.info(
+                        `Added recent read from row ${i+1}: "${bookTitle}" by ${author} (${yearNum})`,
+                    );
+                }
+            }
+            functions.logger.info(`Total recent reads found: ${recentReads.length}`);
 
             // Last Five Years Favs: Get books from C52:G62 (rows 51-61, columns C-G)
             // Column mapping: C=rating (index 2), D=title (index 3),
@@ -1125,7 +1626,8 @@ async function getFavoriteReads() {
                     break;
                 }
 
-                if (author) { // Only require author
+                // Require both title and author for a valid book entry
+                if (bookTitle && author) {
                     lastFiveYearsReads.push({
                         title: bookTitle.toLowerCase(),
                         author: author.toLowerCase(),
@@ -1133,6 +1635,11 @@ async function getFavoriteReads() {
                         summary: summary || "",
                         genre: genre || "",
                     });
+                    functions.logger.info(`Added last five years read: "${bookTitle}" by ${author}`);
+                } else {
+                    functions.logger.warn(
+                        `Row ${i} skipped: missing title or author (title="${bookTitle}", author="${author}")`,
+                    );
                 }
             }
 
@@ -1470,6 +1977,8 @@ exports.fetchAndStoreData = functions.pubsub.schedule("every 15 minutes").onRun(
             annualReadingLists,
             thisYearReads,
             spotifyStats,
+            latestWritingResult,
+            weirdLittleIdeasBuildsResult,
         ] = await Promise.allSettled([
             getSpotifyData(),
             // getWhoopData(), // Commented out - sleep not used in current narrative
@@ -1483,23 +1992,59 @@ exports.fetchAndStoreData = functions.pubsub.schedule("every 15 minutes").onRun(
             getAnnualReadingLists(),
             getThisYearReads(),
             getSpotifyListeningStats(),
+            getLatestSubstackPost(),
+            getWeirdLittleIdeasBuilds(),
         ]);
+
+        // Extract values from Promise.allSettled results
+        const extractValue = (result) => {
+            if (result && result.status === "fulfilled") {
+                return result.value;
+            } else if (result && result.status === "rejected") {
+                functions.logger.error("Promise rejected:", result.reason);
+                // Return appropriate defaults based on expected type
+                // For arrays, return empty array; for objects, return null or empty object
+                return [];
+            }
+            // If result doesn't have status, it's already the value (not from Promise.allSettled)
+            return result;
+        };
 
         // Prepare data object to save
         const dataToStore = {
-            currentSong: spotifyData,
-            // sleepStatus: whoopData, // Commented out - sleep not used
-            currentBook: bookData,
-            activityData: stravaData,
+            currentSong: extractValue(spotifyData),
+            // sleepStatus: extractValue(whoopData), // Commented out - sleep not used
+            currentBook: extractValue(bookData),
+            activityData: extractValue(stravaData),
             // dailySteps: dailySteps, // Commented out - steps not used in narrative
-            favoriteRappers,
-            musicPlaylists,
-            tasteMusicLists,
-            podcastEpisodes,
-            favoriteReads,
-            annualReadingLists,
-            thisYearReads,
-            spotifyStats,
+            favoriteRappers: extractValue(favoriteRappers) || [],
+            musicPlaylists: extractValue(musicPlaylists) || [],
+            tasteMusicLists: (() => {
+                const val = extractValue(tasteMusicLists);
+                return Array.isArray(val) ? val : (val || []);
+            })(),
+            podcastEpisodes: extractValue(podcastEpisodes) || [],
+            favoriteReads: extractValue(favoriteReads),
+            annualReadingLists: (() => {
+                const val = extractValue(annualReadingLists);
+                return Array.isArray(val) ? val : (val || []);
+            })(),
+            thisYearReads: (() => {
+                const val = extractValue(thisYearReads);
+                functions.logger.info(`thisYearReads extracted value: ${JSON.stringify(val, null, 2)}`);
+                // Ensure it's an object with monthlyReads array
+                if (!val || typeof val !== "object") {
+                    functions.logger.warn("thisYearReads is not an object, returning default structure");
+                    return { type: "thisYear", year: new Date().getFullYear(), monthlyReads: [] };
+                }
+                return val;
+            })(),
+            spotifyStats: extractValue(spotifyStats),
+            latestWriting: latestWritingResult.status === "fulfilled" ? latestWritingResult.value : null,
+            builds: (() => {
+                const r = weirdLittleIdeasBuildsResult;
+                return r.status === "fulfilled" && Array.isArray(r.value) ? r.value : [];
+            })(),
             podcastPlaylistUrl: "https://open.spotify.com/playlist/0kcYF4CGf8G9BlzZSqXHyW",
             lastUpdated: new Date(), // Timestamp of the whole update cycle
         };
@@ -1509,6 +2054,10 @@ exports.fetchAndStoreData = functions.pubsub.schedule("every 15 minutes").onRun(
 
         // Write data to Firestore
         await docRef.set(dataToStore);
+
+        if (latestWritingResult.status === "rejected") {
+            functions.logger.error("latestWriting fetch rejected:", latestWritingResult.reason);
+        }
 
         functions.logger.info("Successfully fetched and stored data:", dataToStore);
         // If using HTTP Trigger, send a success response
@@ -1538,17 +2087,43 @@ exports.getSiteData = functions.https.onRequest(async (req, res) => {
         return;
     }
 
-    try {
-        const docRef = db.collection("siteData").doc("latest");
-        const doc = await docRef.get();
+    functions.logger.info("getSiteData called - reading from Firestore");
 
-        if (!doc.exists) {
+    try {
+        const [siteDoc, cityDoc, locationDoc] = await Promise.all([
+            db.collection("siteData").doc("latest").get(),
+            db.collection("config").doc("current_city").get(),
+            db.collection("config").doc("location").get(),
+        ]);
+
+        if (!siteDoc.exists) {
             functions.logger.warn("Document siteData/latest does not exist.");
             res.status(404).send("No site data found.");
-        } else {
-            functions.logger.info("Serving site data to frontend with music playlists.");
-            res.status(200).json(doc.data());
+            return;
         }
+
+        const siteData = siteDoc.data();
+        // Merge location/city from config (LocationTracker app + Cosmo)
+        const cityData = cityDoc.exists ? cityDoc.data() : null;
+        const locationData = locationDoc.exists ? locationDoc.data() : null;
+        const currentCity = cityData?.city ?? null;
+        const lat = locationData?.lat ?? null;
+        const lng = locationData?.lng ?? null;
+        const locationUpdatedAt = locationData?.updated_at ?? cityData?.updated_at ?? null;
+
+        const payload = {
+            ...siteData,
+            currentCity,
+            lat,
+            lng,
+            locationUpdatedAt,
+        };
+
+        const thisYearReads = siteData?.thisYearReads;
+        const cityLabel = currentCity ?? "none";
+        const coordsLabel = (lat != null && lng != null) ? "yes" : "no";
+        functions.logger.info(`Serving site data. currentCity: ${cityLabel}, lat/lng: ${coordsLabel}`);
+        res.status(200).json(payload);
     } catch (error) {
         functions.logger.error("Error getting site data:", error);
         res.status(500).send("Internal Server Error");
@@ -1647,6 +2222,8 @@ exports.refreshData = functions.https.onRequest(async (req, res) => {
             annualReadingLists,
             thisYearReads,
             spotifyStats,
+            latestWritingResult,
+            weirdLittleIdeasBuildsResult,
         ] = await Promise.allSettled([
             getSpotifyData(),
             // getWhoopData(), // Commented out - sleep not used in current narrative
@@ -1660,23 +2237,59 @@ exports.refreshData = functions.https.onRequest(async (req, res) => {
             getAnnualReadingLists(),
             getThisYearReads(),
             getSpotifyListeningStats(),
+            getLatestSubstackPost(),
+            getWeirdLittleIdeasBuilds(),
         ]);
+
+        // Extract values from Promise.allSettled results
+        const extractValue = (result) => {
+            if (result && result.status === "fulfilled") {
+                return result.value;
+            } else if (result && result.status === "rejected") {
+                functions.logger.error("Promise rejected:", result.reason);
+                // Return appropriate defaults based on expected type
+                // For arrays, return empty array; for objects, return null or empty object
+                return [];
+            }
+            // If result doesn't have status, it's already the value (not from Promise.allSettled)
+            return result;
+        };
 
         // Prepare data object to save
         const dataToStore = {
-            currentSong: spotifyData,
-            // sleepStatus: whoopData, // Commented out - sleep not used
-            currentBook: bookData,
-            activityData: stravaData,
+            currentSong: extractValue(spotifyData),
+            // sleepStatus: extractValue(whoopData), // Commented out - sleep not used
+            currentBook: extractValue(bookData),
+            activityData: extractValue(stravaData),
             // dailySteps: dailySteps, // Commented out - steps not used in narrative
-            favoriteRappers,
-            musicPlaylists,
-            tasteMusicLists,
-            podcastEpisodes,
-            favoriteReads,
-            annualReadingLists,
-            thisYearReads,
-            spotifyStats,
+            favoriteRappers: extractValue(favoriteRappers) || [],
+            musicPlaylists: extractValue(musicPlaylists) || [],
+            tasteMusicLists: (() => {
+                const val = extractValue(tasteMusicLists);
+                return Array.isArray(val) ? val : (val || []);
+            })(),
+            podcastEpisodes: extractValue(podcastEpisodes) || [],
+            favoriteReads: extractValue(favoriteReads),
+            annualReadingLists: (() => {
+                const val = extractValue(annualReadingLists);
+                return Array.isArray(val) ? val : (val || []);
+            })(),
+            thisYearReads: (() => {
+                const val = extractValue(thisYearReads);
+                functions.logger.info(`thisYearReads extracted value: ${JSON.stringify(val, null, 2)}`);
+                // Ensure it's an object with monthlyReads array
+                if (!val || typeof val !== "object") {
+                    functions.logger.warn("thisYearReads is not an object, returning default structure");
+                    return { type: "thisYear", year: new Date().getFullYear(), monthlyReads: [] };
+                }
+                return val;
+            })(),
+            spotifyStats: extractValue(spotifyStats),
+            latestWriting: latestWritingResult.status === "fulfilled" ? latestWritingResult.value : null,
+            builds: (() => {
+                const r = weirdLittleIdeasBuildsResult;
+                return r.status === "fulfilled" && Array.isArray(r.value) ? r.value : [];
+            })(),
             podcastPlaylistUrl: "https://open.spotify.com/playlist/0kcYF4CGf8G9BlzZSqXHyW",
             lastUpdated: new Date(), // Timestamp of the whole update cycle
         };
@@ -1686,6 +2299,10 @@ exports.refreshData = functions.https.onRequest(async (req, res) => {
 
         // Write data to Firestore
         await docRef.set(dataToStore);
+
+        if (latestWritingResult.status === "rejected") {
+            functions.logger.error("latestWriting fetch rejected:", latestWritingResult.reason);
+        }
 
         functions.logger.info("Manual data refresh successful:", dataToStore);
         res.status(200).json({ success: true, message: "Data refreshed successfully", data: dataToStore });
@@ -1764,6 +2381,73 @@ exports.updateCity = functions.https.onRequest(async (req, res) => {
     }
 });
 
+// Save FCM token from LocationTracker iOS app (for silent push to wake app and sync health/location)
+exports.saveFCMToken = functions.https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+
+    if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+    }
+    if (req.method !== "POST") {
+        res.status(405).send("Method not allowed");
+        return;
+    }
+
+    try {
+        const { token } = req.body;
+        if (!token || typeof token !== "string") {
+            res.status(400).send("Missing or invalid token");
+            return;
+        }
+        await db.collection("config").doc("fcm_token").set({
+            token: token.trim(),
+            updated_at: new Date(),
+        });
+        functions.logger.info("FCM token saved for LocationTracker");
+        res.status(200).json({ success: true });
+    } catch (error) {
+        functions.logger.error("Error saving FCM token:", error);
+        res.status(500).send("Error saving token");
+    }
+});
+
+// Send silent push to LocationTracker app every 20 min so it can sync health + location without user opening app
+exports.sendLocationTrackerSilentPush = functions.pubsub.schedule("every 20 minutes").onRun(async () => {
+    const doc = await db.collection("config").doc("fcm_token").get();
+    if (!doc.exists) {
+        functions.logger.info("No FCM token for LocationTracker, skipping silent push");
+        return null;
+    }
+    const fcmToken = doc.data().token;
+    if (!fcmToken) {
+        return null;
+    }
+    const message = {
+        data: { sync: "1" },
+        token: fcmToken,
+        apns: {
+            headers: { "apns-priority": "5" },
+            payload: {
+                aps: { "content-available": 1 },
+            },
+        },
+        android: {
+            priority: "normal",
+            data: { sync: "1" },
+        },
+    };
+    try {
+        await admin.messaging().send(message);
+        functions.logger.info("LocationTracker silent push sent");
+    } catch (err) {
+        functions.logger.warn("LocationTracker silent push failed:", err.message);
+    }
+    return null;
+});
+
 // Step count update function for iOS app
 exports.updateSteps = functions.https.onRequest(async (req, res) => {
     // Set CORS headers
@@ -1798,6 +2482,110 @@ exports.updateSteps = functions.https.onRequest(async (req, res) => {
     } catch (error) {
         functions.logger.error("Error updating steps:", error);
         res.status(500).send("Error updating steps");
+    }
+});
+
+// --- Health Data (Apple Health) — written by LocationTracker iOS app, consumed by getHealthData/Cosmo ---
+exports.updateHealth = functions.https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+
+    if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+    }
+
+    try {
+        const { days } = req.body;
+        if (!days || !Array.isArray(days)) {
+            res.status(400).send("Missing or invalid days array");
+            return;
+        }
+
+        const batch = db.batch();
+        const now = new Date();
+        for (const day of days) {
+            const dateStr = day.date;
+            if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) continue;
+            const ref = db.collection("health").doc(dateStr);
+            const data = {
+                updatedAt: now,
+            };
+            if (day.steps != null) data.steps = Math.round(Number(day.steps));
+            if (day.sleepHours != null) data.sleepHours = Number(day.sleepHours);
+            if (day.heartRateAvg != null) data.heartRateAvg = Number(day.heartRateAvg);
+            if (day.activeCalories != null) data.activeCalories = Math.round(Number(day.activeCalories));
+            if (day.dietaryCalories != null) data.dietaryCalories = Math.round(Number(day.dietaryCalories));
+            if (day.exerciseMinutes != null) data.exerciseMinutes = Math.round(Number(day.exerciseMinutes));
+            if (day.standHours != null) data.standHours = Math.round(Number(day.standHours));
+            if (Array.isArray(day.workouts)) data.workouts = day.workouts;
+            batch.set(ref, data, { merge: true });
+        }
+        await batch.commit();
+        functions.logger.info(`Health updated: ${days.length} days`);
+        res.status(200).json({ success: true, message: "Health updated", days: days.length });
+    } catch (error) {
+        functions.logger.error("Error updating health:", error);
+        res.status(500).send("Error updating health");
+    }
+});
+
+exports.getHealthData = functions.https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+
+    if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+    }
+
+    try {
+        const snapshot = await db.collection("health").get();
+        const daysById = {};
+        const workouts = [];
+        let updatedAt = null;
+
+        snapshot.docs.forEach((doc) => {
+            const d = doc.data();
+            const date = doc.id;
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+            const dayOut = { date };
+            if (d.steps != null) dayOut.steps = d.steps;
+            if (d.sleepHours != null) dayOut.sleepHours = d.sleepHours;
+            if (d.heartRateAvg != null) dayOut.heartRateAvg = d.heartRateAvg;
+            if (d.activeCalories != null) dayOut.activeCalories = d.activeCalories;
+            if (d.dietaryCalories != null) dayOut.dietaryCalories = d.dietaryCalories;
+            if (d.exerciseMinutes != null) dayOut.exerciseMinutes = d.exerciseMinutes;
+            if (d.standHours != null) dayOut.standHours = d.standHours;
+            daysById[date] = dayOut;
+            const ts = d.updatedAt && (d.updatedAt.toDate ? d.updatedAt.toDate() : d.updatedAt);
+            if (ts && (!updatedAt || ts > updatedAt)) updatedAt = ts;
+            if (Array.isArray(d.workouts)) {
+                d.workouts.forEach((w) => {
+                    workouts.push({
+                        date,
+                        name: w.name ?? "Workout",
+                        durationMinutes: w.durationMinutes ?? 0,
+                        activeCalories: w.activeCalories,
+                        distance: w.distance,
+                    });
+                });
+            }
+        });
+
+        const sortedDates = Object.keys(daysById).sort();
+        const days = sortedDates.map((d) => daysById[d]);
+
+        res.status(200).json({
+            updatedAt: updatedAt ? updatedAt.toISOString() : null,
+            days,
+            workouts,
+        });
+    } catch (error) {
+        functions.logger.error("Error getting health data:", error);
+        res.status(500).json({ error: "Error getting health data" });
     }
 });
 

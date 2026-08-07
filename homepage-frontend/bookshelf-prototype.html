@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bookshelf prototype</title>
+<style>
+  :root{--bg-color:#111111;--text-color:#ffffff;--text-secondary:#cccccc;--inactive-color:#666666;--border-color:#333333;--gold:#e7cd5e;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg-color);color:var(--text-color);
+    font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;letter-spacing:-0.01em;padding:48px 24px;overflow-x:hidden}
+  .wrap{max-width:900px;margin:0 auto}
+  .kicker{font-size:0.85rem;color:var(--inactive-color);margin:0 0 4px}
+  h1{font-size:1.4rem;font-weight:600;margin:0 0 6px;text-transform:lowercase}
+  .hint{font-size:0.85rem;color:var(--text-secondary);margin:0 0 20px}
+  .nav{margin:0 0 8px;font-size:1rem}
+  .nav .n{cursor:pointer;text-transform:lowercase;color:var(--inactive-color);font-weight:600}
+  .nav .n.on{color:var(--text-color);text-decoration:underline;text-underline-offset:4px}
+  .nav .sep{color:var(--inactive-color);margin:0 10px}
+  .stat{font-size:0.85rem;color:var(--inactive-color);text-transform:lowercase;margin:0 0 18px}
+
+  .shelf-row{position:relative;display:flex;align-items:center;gap:6px}
+  .arrow{flex:0 0 auto;width:26px;height:26px;border:none;background:none;color:var(--text-color);
+    font-size:1.5rem;cursor:pointer;opacity:0.55;line-height:1;padding:0}
+  .arrow:hover{opacity:1}
+  .arrow[disabled]{opacity:0.15;cursor:default}
+  .shelf-viewport{flex:1 1 auto;perspective:1500px;overflow-x:auto;overflow-y:hidden;padding:30px 0 0;
+    cursor:grab;scrollbar-width:none;scroll-behavior:smooth}
+  .shelf-viewport::-webkit-scrollbar{display:none}
+  .shelf-viewport.dragging{cursor:grabbing;scroll-behavior:auto}
+  .shelf{display:flex;align-items:flex-end;gap:3px;width:max-content;padding:0 4px;
+    border-bottom:2px solid var(--border-color);transform-style:preserve-3d}
+
+  .book{position:relative;flex:0 0 auto;display:flex;flex-direction:column;align-items:center;
+    padding:14px 0 12px;border-radius:2px 3px 3px 2px;color:#ece7dd;cursor:pointer;user-select:none;
+    box-shadow:inset -6px 0 10px rgba(0,0,0,.28),inset 3px 0 4px rgba(255,255,255,.06),2px 3px 8px rgba(0,0,0,.4);
+    transition:transform .28s cubic-bezier(.2,.8,.2,1);transform-origin:bottom center}
+  .book:hover{transform:translateY(-10px)}
+  .book.selected{transform:translateY(-22px)}
+  /* favorites: a gilded gold frame + glow instead of a star icon */
+  .book.fav{
+    box-shadow:inset 0 0 0 1.5px var(--gold), inset -6px 0 10px rgba(0,0,0,.30),
+      inset 3px 0 4px rgba(231,205,94,.10), 0 0 9px rgba(231,205,94,.28), 2px 3px 8px rgba(0,0,0,.4);
+  }
+  .spine-title{writing-mode:vertical-rl;text-orientation:mixed;font-size:0.72rem;font-weight:600;
+    text-transform:lowercase;line-height:1.05;max-height:82%;overflow:hidden;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+  .spine-author{margin-top:auto;writing-mode:vertical-rl;text-orientation:mixed;font-size:0.5rem;opacity:0.7;
+    text-transform:lowercase;max-height:34%;overflow:hidden}
+
+  /* half-star capable rating (used in the detail panel) */
+  .rating{display:inline-flex;gap:1px;vertical-align:-1px}
+  .rating .st{position:relative;color:#413b28;font-size:1rem;line-height:1}
+  .rating .st.full{color:var(--gold)}
+  .rating .st.half::before{content:'★';position:absolute;left:0;top:0;width:50%;overflow:hidden;color:var(--gold)}
+
+  .detail{margin-top:30px;min-height:96px;border-top:1px solid var(--border-color);padding-top:18px;
+    opacity:0;transition:opacity .25s ease}
+  .detail.show{opacity:1}
+  .detail .d-title{font-size:1.05rem;font-weight:600;text-transform:lowercase;margin:0}
+  .detail .d-meta{font-size:0.85rem;color:var(--inactive-color);text-transform:lowercase;margin:5px 0 10px;
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .detail .d-summary{font-size:0.95rem;color:var(--text-secondary);line-height:1.45;max-width:620px;text-transform:lowercase}
+  .detail .d-empty{font-size:0.95rem;color:var(--inactive-color);text-transform:lowercase;font-style:italic}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="kicker">prototype</p>
+  <h1>the bookshelf</h1>
+  <p class="hint">drag/scroll or use the arrows to browse. click a spine to pull it out.</p>
+  <div class="nav">
+    <span class="n" data-mode="recent">recent favs</span>
+    <span class="sep">|</span>
+    <span class="n on" data-mode="thisyear">this year</span>
+  </div>
+  <p class="stat" id="stat"></p>
+  <div class="shelf-row">
+    <button class="arrow" id="prev" aria-label="previous">‹</button>
+    <div class="shelf-viewport" id="viewport"><div class="shelf" id="shelf"></div></div>
+    <button class="arrow" id="next" aria-label="next">›</button>
+  </div>
+  <div class="detail" id="detail"></div>
+</div>
+<script>
+const API="https://us-central1-ckubal-homepage-be.cloudfunctions.net/getSiteData";
+const SPINES=["#4f5b63","#6b5d51","#5c6350","#7a544e","#455160","#6f6657","#544f61","#5d6b68","#7d6f4e","#4a5a56"];
+const cap=s=>(s||"").trim();
+const key=(t,a)=>cap(t).toLowerCase()+"|"+cap(a).toLowerCase();
+function hash(s){let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return h;}
+const yy=y=>"'"+String(y).slice(-2);
+// half-star capable rating -> html
+function ratingHtml(r){const v=parseFloat(r)||0;let h='';for(let i=0;i<5;i++){const f=Math.max(0,Math.min(1,v-i));
+  h+=`<span class="st ${f>=1?'full':(f>=0.5?'half':'empty')}">★</span>`;}return `<span class="rating">${h}</span>`;}
+
+let DATA={};
+function spine(b, extra){
+  const h=hash(key(b.title,b.author));
+  const el=document.createElement("div");el.className="book";
+  el.style.background=SPINES[h%SPINES.length];
+  el.style.width=(30+(h%14))+"px";el.style.height=(150+((h>>4)%58))+"px";
+  const isFav = extra && DATA.favs[key(b.title,b.author)];
+  if (isFav) el.classList.add("fav");
+  el.innerHTML=`<span class="spine-title">${cap(b.title)}</span><span class="spine-author">${cap(b.author)}</span>`;
+  el.addEventListener("click",()=>select(el,b,extra));
+  return el;
+}
+function select(el,b,extra){
+  document.querySelectorAll(".book.selected").forEach(x=>x.classList.remove("selected"));
+  el.classList.add("selected");
+  const fav = DATA.favs[key(b.title,b.author)];
+  const rating = (b.rating!=null && b.rating!=="") ? b.rating : (fav && fav.rating);
+  const genre = (fav && fav.genre) || b.genre;
+  const summary = cap((fav && fav.summary) || b.summary);
+  const metaBits=[`by ${cap(b.author)}`];
+  if (genre) metaBits.push(cap(genre));
+  if (extra && extra.when) metaBits.push("read "+extra.when);
+  let meta = `<span>${metaBits.join(" · ")}</span>`;
+  if (rating!=null && rating!=="") meta += ratingHtml(rating);
+  document.getElementById("detail").innerHTML=`
+    <p class="d-title">${cap(b.title)}</p>
+    <p class="d-meta">${meta}</p>
+    ${summary?`<p class="d-summary">${summary}</p>`:`<p class="d-empty">detailed notes to come.</p>`}`;
+  document.getElementById("detail").classList.add("show");
+}
+function renderRecent(){
+  const shelf=document.getElementById("shelf");shelf.innerHTML="";
+  const seen=new Set();let n=0;
+  DATA.recent.forEach(b=>{const k=key(b.title,b.author);if(seen.has(k)||!cap(b.title))return;seen.add(k);n++;
+    shelf.appendChild(spine(b,{fav:true}));});
+  document.getElementById("stat").textContent=n+" recent favorites";
+}
+function renderThisYear(){
+  const shelf=document.getElementById("shelf");shelf.innerHTML="";let n=0;
+  // flatten months (already newest-first) into one continuous shelf, no date labels on the overview
+  DATA.months.forEach(m=>m.books.forEach(b=>{n++;shelf.appendChild(spine({...b},{when:m.month+" "+DATA.year}));}));
+  document.getElementById("stat").textContent=n+" books read in "+DATA.year+", most recent first";
+}
+let MODE="thisyear";
+function render(){MODE==="recent"?renderRecent():renderThisYear();
+  document.getElementById("viewport").scrollLeft=0;document.getElementById("detail").classList.remove("show");updateArrows();}
+const vp=()=>document.getElementById("viewport");
+function updateArrows(){const v=vp();document.getElementById("prev").disabled=v.scrollLeft<=2;
+  document.getElementById("next").disabled=v.scrollLeft>=(v.scrollWidth-v.clientWidth-2);}
+document.getElementById("prev").onclick=()=>{vp().scrollLeft-=vp().clientWidth*0.8;setTimeout(updateArrows,350);};
+document.getElementById("next").onclick=()=>{vp().scrollLeft+=vp().clientWidth*0.8;setTimeout(updateArrows,350);};
+vp().addEventListener("scroll",updateArrows,{passive:true});
+(function(){let d=false,sx,sc;const v=vp();
+  v.addEventListener("mousedown",e=>{d=true;v.classList.add("dragging");sx=e.pageX;sc=v.scrollLeft;});
+  window.addEventListener("mouseup",()=>{d=false;v.classList.remove("dragging");updateArrows();});
+  window.addEventListener("mousemove",e=>{if(!d)return;v.scrollLeft=sc-(e.pageX-sx);});})();
+document.querySelectorAll(".nav .n").forEach(n=>n.onclick=()=>{
+  document.querySelectorAll(".nav .n").forEach(x=>x.classList.remove("on"));n.classList.add("on");MODE=n.dataset.mode;render();});
+fetch(API).then(r=>r.json()).then(d=>{
+  const fr=d.favoriteReads||{};DATA.recent=fr.recentReads||[];DATA.favs={};
+  [...(fr.recentReads||[]),...(fr.lastFiveYearsReads||[])].forEach(b=>{DATA.favs[key(b.title,b.author)]=b;});
+  const ty=d.thisYearReads||{};DATA.year=ty.year||2026;DATA.months=ty.monthlyReads||[];render();
+}).catch(e=>{document.getElementById("shelf").innerHTML="<p style='color:#888'>couldn't load: "+e.message+"</p>";});
+</script>
+</body>
+</html>
