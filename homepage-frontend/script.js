@@ -2031,8 +2031,12 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
         const isPhone = window.innerWidth <= 768;
 
         if (isPhone) {
+            // Covers start without a src; startRecordGlide loads them just
+            // ahead of the strip. (Native loading="lazy" never fires for
+            // images carried into view by a compositor transition on iOS,
+            // which left blank white squares.)
             recordCarousel.innerHTML = recordSlides
-                .map(inner => `<div class="swiper-slide">${inner.replace('class="record-cover"', 'class="record-cover" loading="lazy"')}</div>`)
+                .map(inner => `<div class="swiper-slide">${inner.replace('src="assets/records/', 'data-src="assets/records/')}</div>`)
                 .join('');
         }
 
@@ -2162,6 +2166,26 @@ function startRecordGlide(swiper, perSlideMs = 2000) {
     let touching = false;
     let resumeTimer = null;
 
+    // Load covers from just behind the visible one to a dozen ahead (about
+    // 25s of travel), on a slow timer. Setting a src is trivial main-thread
+    // work and decoding is async, so the compositor-driven glide is unaffected.
+    const LOOKAHEAD = 12;
+    const loadCoversNear = () => {
+        if (swiper.destroyed) return;
+        const centre = visibleIndex();
+        const lo = Math.max(0, centre - 2);
+        const hi = Math.min(last(), centre + LOOKAHEAD);
+        for (let i = lo; i <= hi; i++) {
+            const slide = swiper.slides[i];
+            const img = slide && slide.querySelector('img[data-src]');
+            if (img) {
+                img.src = img.dataset.src;
+                img.removeAttribute('data-src');
+            }
+        }
+    };
+    const loadTimer = setInterval(loadCoversNear, 1500);
+
     const glide = () => {
         if (swiper.destroyed || swiper.animating || touching) return;
         let from = visibleIndex();
@@ -2171,6 +2195,7 @@ function startRecordGlide(swiper, perSlideMs = 2000) {
             void swiper.wrapperEl.offsetWidth; // flush so the glide starts from 0
             from = 0;
         }
+        loadCoversNear();
         const to = last();
         swiper.slideTo(to, (to - from) * perSlideMs);
     };
@@ -2181,6 +2206,7 @@ function startRecordGlide(swiper, perSlideMs = 2000) {
     const step = (dir) => {
         const target = Math.max(0, Math.min(last(), visibleIndex() + dir));
         swiper.slideTo(target, 500); // its transitionEnd resumes the glide
+        loadCoversNear();
     };
 
     swiper.on('transitionEnd', () => scheduleResume(0));
@@ -2206,9 +2232,11 @@ function startRecordGlide(swiper, perSlideMs = 2000) {
     window.addEventListener('resize', onResize);
     swiper.on('destroy', () => {
         clearTimeout(resumeTimer);
+        clearInterval(loadTimer);
         window.removeEventListener('resize', onResize);
     });
 
+    loadCoversNear();
     glide();
 }
 
