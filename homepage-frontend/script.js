@@ -2089,6 +2089,8 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
             effect: 'slide',
             slidesPerView: 1.2,
             spaceBetween: 20,
+            // Snap speed after a swipe. (The glide passes its own duration.)
+            speed: 350,
             // Long glides and loop-mode housekeeping don't mix; the glide
             // rewinds at the end of the strip instead.
             loop: false,
@@ -2137,11 +2139,12 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
 
 // Phones: a continuous strip without restarting a CSS transition at every
 // cover. Each restart costs a main-thread frame and shows as a hitch on real
-// hardware no matter how small the DOM is, so instead the strip glides across
-// a chunk of covers in ONE long linear transition that the compositor runs
-// with no JavaScript in the loop. Arrows and swipes interrupt it and it
-// resumes from wherever the strip actually is.
-function startRecordGlide(swiper, perSlideMs = 2000, chunk = 30) {
+// hardware no matter how small the DOM is, so instead the strip glides to
+// the end of the shelf in ONE long linear transition that the compositor
+// runs with no JavaScript in the loop (the only restart is the rewind, about
+// every five minutes). Arrows and swipes interrupt it and it resumes from
+// wherever the strip actually is.
+function startRecordGlide(swiper, perSlideMs = 2000) {
     const last = () => swiper.slides.length - 1;
 
     // Index of the cover nearest the centre right now, read from the real
@@ -2168,7 +2171,7 @@ function startRecordGlide(swiper, perSlideMs = 2000, chunk = 30) {
             void swiper.wrapperEl.offsetWidth; // flush so the glide starts from 0
             from = 0;
         }
-        const to = Math.min(from + chunk, last());
+        const to = last();
         swiper.slideTo(to, (to - from) * perSlideMs);
     };
     const scheduleResume = (delay) => {
