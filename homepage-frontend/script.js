@@ -2038,9 +2038,13 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
                 enabled: true,
                 onlyInViewport: true,
             },
+            // Continuous ticker: no pause between slides, each slide takes
+            // `speed` ms to pass, linear easing is set in CSS. Resumes after
+            // a swipe; pauses while the mouse is over it on desktop.
             autoplay: {
-                delay: 2000,
+                delay: 0,
                 disableOnInteraction: false,
+                pauseOnMouseEnter: true,
             },
             speed: 2000,
             coverflowEffect: {
