@@ -3216,6 +3216,40 @@ a.build-slide-link:hover .build-title {
     margin-right: 0;
 }
 
+/* second nav line (annual years) sits under this year | favorites */
+.reads-year-nav {
+    display: block;
+    margin-top: 6px;
+}
+
+/* ---------- reading bookshelf (this year + favorites) ---------- */
+.reading-shelf-row { position: relative; display: flex; align-items: center; gap: 6px; max-width: 100%; }
+.reading-shelf-arrow { flex: 0 0 auto; width: 26px; height: 26px; border: none; background: none; color: var(--text-color); font-size: 1.5rem; cursor: pointer; opacity: .55; line-height: 1; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+.reading-shelf-arrow:hover { opacity: 1; }
+.reading-shelf-arrow[disabled] { opacity: .15; cursor: default; }
+.reading-shelf-vp { flex: 1 1 auto; min-width: 0; perspective: 1500px; overflow-x: auto; overflow-y: hidden; padding: 30px 0 0; cursor: grab; scrollbar-width: none; scroll-behavior: smooth; }
+.reading-shelf-vp::-webkit-scrollbar { display: none; }
+.reading-shelf-vp.dragging { cursor: grabbing; scroll-behavior: auto; }
+.reading-shelf { display: flex; align-items: flex-end; gap: 3px; width: max-content; padding: 0 4px; border-bottom: 2px solid var(--border-color); transform-style: preserve-3d; }
+.reading-book { position: relative; overflow: hidden; flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; padding: 16px 0 12px; border-radius: 2px 3px 3px 2px; color: #ece7dd; cursor: pointer; user-select: none; box-shadow: inset -6px 0 10px rgba(0,0,0,.28), inset 3px 0 4px rgba(255,255,255,.06), 2px 3px 8px rgba(0,0,0,.4); transition: transform .28s cubic-bezier(.2,.8,.2,1); transform-origin: bottom center; }
+.reading-book:hover { transform: translateY(-10px); }
+.reading-book.selected { transform: translateY(-22px); }
+/* top-rated: gilded top edge */
+.reading-book.fav::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 6px; background: linear-gradient(180deg, #f7e59a 0%, #e7cd5e 55%, #c9a63f 100%); box-shadow: 0 1px 4px rgba(231,205,94,.45); }
+.reading-book .rb-title { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; writing-mode: vertical-rl; text-orientation: mixed; font-size: .72rem; font-weight: 600; text-transform: lowercase; line-height: 1.05; overflow: hidden; text-shadow: 0 1px 2px rgba(0,0,0,.4); letter-spacing: 0; }
+.reading-book .rb-author { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin-top: auto; padding-top: 6px; writing-mode: vertical-rl; text-orientation: mixed; font-size: .5rem; opacity: .7; text-transform: lowercase; max-height: 34%; overflow: hidden; }
+/* detail inherits the section's serif body font */
+.reading-shelf-detail { margin-top: 26px; min-height: 80px; opacity: 0; transition: opacity .25s ease; }
+.reading-shelf-detail.show { opacity: 1; }
+.reading-shelf-detail .rd-title { font-size: 1.05rem; color: var(--text-color); text-transform: lowercase; margin: 0 0 3px; line-height: 1.2; }
+.reading-shelf-detail .rd-meta { font-size: 0.8rem; color: var(--inactive-color); text-transform: lowercase; margin: 0 0 8px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.reading-shelf-detail .rd-stars { display: inline-flex; gap: 1px; }
+.reading-shelf-detail .rd-stars .st { position: relative; color: #413b28; font-size: 0.85rem; line-height: 1; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+.reading-shelf-detail .rd-stars .st.full { color: #e7cd5e; }
+.reading-shelf-detail .rd-stars .st.half::before { content: '★'; position: absolute; left: 0; top: 0; width: 50%; overflow: hidden; color: #e7cd5e; }
+.reading-shelf-detail .rd-summary { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5; letter-spacing: -0.005em; text-transform: lowercase; margin: 0; max-width: 560px; }
+.reading-shelf-detail .rd-empty { font-size: 0.8rem; color: var(--inactive-color); text-transform: lowercase; font-style: italic; margin: 0; }
+
 .reads-nav-item {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     font-size: 1.1rem;
@@ -3815,4 +3849,57 @@ a.build-slide-link:hover .build-title {
 
 .bio-writing-link:hover {
     color: var(--text-secondary);
+}
+
+/* ============================================================
+   motion polish (2026-09): animated underline, content
+   cross-fade, count-up. all gated by prefers-reduced-motion.
+   ============================================================ */
+
+/* --- animated underline for the primary navs ---
+   replaces the static text-decoration underline with a
+   width-animated background underline so the active marker
+   grows/wipes in instead of hard-cutting. works on both the
+   flex bio nav and the inline reading nav. --- */
+.bio-label,
+.reads-nav-item {
+    text-decoration: none;
+    background-image: linear-gradient(currentColor, currentColor);
+    background-repeat: no-repeat;
+    background-position: 0 100%;
+    background-size: 0% 2px;
+    padding-bottom: 4px;
+    transition: color 0.3s ease, opacity 0.2s ease,
+                background-size 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.bio-label.active,
+.reads-nav-item.active {
+    text-decoration: none;
+    background-size: 100% 2px;
+}
+/* keep separators vertically aligned with the now-padded labels */
+.bio-label-separator { padding-bottom: 4px; }
+
+/* --- content cross-fade entrance on panel swaps ---
+   blur+lift variant for the big right-column section/highlight
+   swaps; a plainer opacity+lift variant for the reading shelf
+   (avoids blurring the 3D spines mid-scroll). --- */
+@keyframes contentSwapIn {
+    from { opacity: 0; transform: translateY(6px); filter: blur(5px); }
+    to   { opacity: 1; transform: translateY(0);   filter: blur(0); }
+}
+@keyframes contentSwapInPlain {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.content-swap-in       { animation: contentSwapIn 0.34s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.content-swap-in-plain { animation: contentSwapInPlain 0.30s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+/* --- count-up numbers in the reading stat line --- */
+.reading-stats .count-num { font-variant-numeric: tabular-nums; }
+
+/* --- reduced-motion: underline appears instantly, no entrance motion --- */
+@media (prefers-reduced-motion: reduce) {
+    .bio-label, .reads-nav-item { transition: color 0.3s ease, opacity 0.2s ease; }
+    .content-swap-in, .content-swap-in-plain { animation: none; }
 }

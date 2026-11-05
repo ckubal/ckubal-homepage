@@ -48,6 +48,71 @@ function escapeHtml(text) {
         .replace(/"/g, '&quot;');
 }
 
+/* ---------- motion polish helpers (2026-09) ---------- */
+
+// honor the OS "reduce motion" setting for every optional animation
+function prefersReducedMotion() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+// replay a CSS entrance animation on an element (opacity/lift[/blur])
+function animateContentIn(el, plain) {
+    if (!el || prefersReducedMotion()) return;
+    const cls = plain ? 'content-swap-in-plain' : 'content-swap-in';
+    el.classList.remove('content-swap-in', 'content-swap-in-plain');
+    // force reflow so the animation restarts even on rapid re-swaps
+    void el.offsetWidth;
+    el.classList.add(cls);
+}
+
+// count a number up to its target; respects reduced-motion (jumps to final)
+function countUpEl(el) {
+    const target = parseFloat(el.getAttribute('data-count'));
+    if (!isFinite(target)) return;
+    if (prefersReducedMotion() || target <= 0) { el.textContent = target.toLocaleString(); return; }
+    const duration = 650;
+    const start = performance.now();
+    const step = (now) => {
+        const p = Math.min(1, (now - start) / duration);
+        // ease-out cubic
+        const eased = 1 - Math.pow(1 - p, 3);
+        el.textContent = Math.round(target * eased).toLocaleString();
+        if (p < 1) requestAnimationFrame(step);
+        else el.textContent = target.toLocaleString();
+    };
+    requestAnimationFrame(step);
+}
+
+// watch the right-hand panel and cross-fade content whenever it is swapped.
+// section/highlight swaps replace #dynamic-content's children (blur variant);
+// reading-nav swaps replace .read-content's children (plainer variant, so the
+// 3D book spines aren't blurred). swiper internals are ignored.
+function initContentCrossfade() {
+    const dc = document.getElementById('dynamic-content');
+    if (!dc || !window.MutationObserver) return;
+    const pending = new Set();
+    let scheduled = false;
+    const flush = () => {
+        scheduled = false;
+        pending.forEach((el) => {
+            if (!el.isConnected) return;
+            animateContentIn(el, el.classList && el.classList.contains('read-content'));
+        });
+        pending.clear();
+    };
+    const obs = new MutationObserver((muts) => {
+        if (prefersReducedMotion()) return;
+        for (const m of muts) {
+            const t = m.target;
+            if (!t || (t.closest && t.closest('.swiper'))) continue; // ignore carousel churn
+            if (t === dc) pending.add(dc);
+            else if (t.classList && t.classList.contains('read-content')) pending.add(t);
+        }
+        if (pending.size && !scheduled) { scheduled = true; requestAnimationFrame(flush); }
+    });
+    obs.observe(dc, { childList: true, subtree: true });
+}
+
 function isTrustedSubstackArticleUrl(url) {
     try {
         const u = new URL(url);
@@ -1754,6 +1819,7 @@ const recordCollection = [
     { artist: "atmosphere", album: "when life gives you lemons, you paint that shit gold", year: 2008, cover: "atmosphere-when-life-gives-you-lemons.jpg" },
     { artist: "a tribe called quest", album: "people's instinctive travels and the paths of rhythm", year: 1990, cover: "a-tribe-called-quest-peoples-instinctive-travels.jpg" },
     { artist: "baby keem", album: "the melodic blue", year: 2021, cover: "baby-keem-melodic-blue.jpg" },
+    { artist: "baby keem", album: "ca$ino", year: 2026, cover: "baby-keem-casino.jpg" },
     { artist: "the beatles", album: "revolver", year: 1966, cover: "the-beatles-revolver.jpg" },
     { artist: "the beatles", album: "sgt. pepper's lonely hearts club band", year: 1967, cover: "the-beatles-sgt-peppers.jpg" },
     { artist: "belle & sebastian", album: "fold your hands child, you walk like a peasant", year: 2000, cover: "belle-sebastian-fold-your-hands.jpg" },
@@ -1762,19 +1828,24 @@ const recordCollection = [
     { artist: "beyoncé", album: "lemonade", year: 2016, cover: "beyonce-lemonade.jpg" },
     { artist: "blink-182", album: "enema of the state", year: 1999, cover: "blink-182-enema-of-the-state.jpg" },
     { artist: "blink-182", album: "take off your pants and jacket", year: 2001, cover: "blink-182-take-off-your-pants.jpg" },
+    { artist: "blink-182", album: "one more time...", year: 2023, cover: "blink-182-one-more-time.jpg" },
     { artist: "bloc party", album: "silent alarm", year: 2005, cover: "bloc-party-silent-alarm.jpg" },
+    { artist: "bloc party", album: "a weekend in the city", year: 2007, cover: "bloc-party-a-weekend-in-the-city.jpg" },
     { artist: "brand new", album: "deja entendu", year: 2003, cover: "brand-new-deja-entendu.jpg" },
     { artist: "brand new", album: "the devil and god are raging inside me", year: 2006, cover: "brand-new-devil-and-god.jpg" },
+    { artist: "brian eno", album: "ambient 1: music for airports", year: 1978, cover: "brian-eno-ambient-1-music-for-airports.jpg" },
     { artist: "bright eyes", album: "vinyl box set", year: 2003, cover: "bright-eyes-vinyl-box-set.jpg" },
     { artist: "chance the rapper", album: "coloring book", year: 2016, cover: "chance-the-rapper-coloring-book.jpg" },
     { artist: "charli xcx", album: "how i'm feeling now", year: 2020, cover: "charli-xcx-how-im-feeling-now.jpg" },
     { artist: "charli xcx", album: "crash", year: 2022, cover: "charli-xcx-crash.jpg" },
     { artist: "charli xcx", album: "brat", year: 2024, cover: "charli-xcx-brat.jpg" },
+    { artist: "charli xcx", album: "music, fashion, film", year: 2026, cover: "charli-xcx-music-fashion-film.jpg" },
     { artist: "childish gambino", album: "camp", year: 2011, cover: "childish-gambino-camp.jpg" },
     { artist: "childish gambino", album: "because the internet", year: 2013, cover: "childish-gambino-because-the-internet.jpg" },
     { artist: "childish gambino with jaden smith", album: "kauai", year: 2014, cover: "childish-gambino-kauai.jpg" },
     { artist: "clipse", album: "let god sort em out", year: 2025, cover: "clipse-let-god-sort-em-out.jpg" },
     { artist: "daft punk", album: "random access memories", year: 2013, cover: "daft-punk-random-access-memories.jpg" },
+    { artist: "das racist", album: "relax", year: 2011, cover: "das-racist-relax.jpg" },
     { artist: "dave", album: "we're all alone in this together", year: 2021, cover: "dave-were-all-alone.jpg" },
     { artist: "death cab for cutie", album: "plans", year: 2005, cover: "death-cab-for-cutie-plans.jpg" },
     { artist: "desaparecidos", album: "read music, speak spanish", year: 2002, cover: "desaparecidos-read-music-speak-spanish.jpg" },
@@ -1793,6 +1864,7 @@ const recordCollection = [
     { artist: "fall out boy", album: "take this to your grave", year: 2003, cover: "fall-out-boy-take-this-to-your-grave.jpg" },
     { artist: "fall out boy", album: "from under the cork tree", year: 2005, cover: "fall-out-boy-from-under-cork-tree.jpg" },
     { artist: "the format", album: "dog problems", year: 2006, cover: "the-format-dog-problems.jpg" },
+    { artist: "frank ocean", album: "nostalgia, ultra", year: 2011, cover: "frank-ocean-nostalgia-ultra.jpg" },
     { artist: "frank ocean", album: "endless", year: 2016, cover: "frank-ocean-endless.jpg" },
     { artist: "frank ocean", album: "blond", year: 2016, cover: "frank-ocean-blond.jpg" },
     { artist: "fred again..", album: "actual life", year: 2021, cover: "fred-again-actual-life.jpg" },
@@ -1802,10 +1874,12 @@ const recordCollection = [
     { artist: "glass animals", album: "zaba", year: 2014, cover: "glass-animals-zaba.jpg" },
     { artist: "glass animals", album: "dreamland", year: 2020, cover: "glass-animals-dreamland.jpg" },
     { artist: "glass animals", album: "i love you so f***ing much.", year: 2024, cover: "glass-animals-i-love-you-so-fucking-much.jpg" },
+    { artist: "gratitude", album: "gratitude", year: 2005, cover: "gratitude-gratitude.jpg" },
     { artist: "green day", album: "dookie", year: 1994, cover: "green-day-dookie.jpg" },
     { artist: "hobo johnson", album: "the fall of hobo johnson", year: 2019, cover: "hobo-johnson-fall-of-hobo-johnson.jpg" },
     { artist: "incubus", album: "make yourself", year: 1999, cover: "incubus-make-yourself.jpg" },
     { artist: "incubus", album: "morning view", year: 2001, cover: "incubus-morning-view.jpg" },
+    { artist: "j. cole", album: "the fall off", year: 2026, cover: "j-cole-the-fall-off.jpg" },
     { artist: "jack harlow", album: "jackman.", year: 2023, cover: "jack-harlow-jackman.jpg" },
     { artist: "jack's mannequin", album: "everything in transit", year: 2005, cover: "jacks-mannequin-everything-in-transit.jpg" },
     { artist: "jamie xx", album: "in waves", year: 2024, cover: "jamie-xx-in-waves.jpg" },
@@ -1863,6 +1937,7 @@ const recordCollection = [
     { artist: "red hot chili peppers", album: "stadium arcadium", year: 2006, cover: "red-hot-chili-peppers-stadium-arcadium.jpg" },
     { artist: "rihanna", album: "anti", year: 2016, cover: "rihanna-anti.jpg" },
     { artist: "run the jewels", album: "run the jewels", year: 2013, cover: "run-the-jewels.jpg" },
+    { artist: "run the jewels", album: "run the jewels 2", year: 2014, cover: "run-the-jewels-2.jpg" },
     { artist: "run the jewels", album: "run the jewels 3", year: 2016, cover: "run-the-jewels-3.jpg" },
     { artist: "say anything", album: "...is a real boy", year: 2004, cover: "say-anything-is-a-real-boy.jpg" },
     { artist: "the shins", album: "wincing the night away", year: 2007, cover: "the-shins-wincing-the-night-away.jpg" },
@@ -1875,17 +1950,22 @@ const recordCollection = [
     { artist: "sublime", album: "sublime", year: 1996, cover: "sublime-sublime.jpg" },
     { artist: "sufjan stevens", album: "carrie & lowell", year: 2015, cover: "sufjan-stevens-carrie-lowell.jpg" },
     { artist: "taking back sunday", album: "tell all your friends", year: 2002, cover: "taking-back-sunday-tell-all-your-friends.jpg" },
+    { artist: "taking back sunday", album: "where you want to be", year: 2004, cover: "taking-back-sunday-where-you-want-to-be.jpg" },
+    { artist: "taking back sunday", album: "louder now", year: 2006, cover: "taking-back-sunday-louder-now.jpg" },
     { artist: "taylor swift", album: "1989", year: 2014, cover: "taylor-swift-1989.jpg" },
     { artist: "taylor swift", album: "folklore", year: 2020, cover: "taylor-swift-folklore.jpg" },
     { artist: "taylor swift", album: "evermore", year: 2020, cover: "taylor-swift-evermore.jpg" },
+    { artist: "tegan and sara", album: "heartthrob", year: 2013, cover: "tegan-and-sara-heartthrob.jpg" },
     { artist: "third eye blind", album: "third eye blind", year: 1997, cover: "third-eye-blind-third-eye-blind.jpg" },
     { artist: "tyler, the creator", album: "call me if you get lost", year: 2021, cover: "tyler-the-creator-call-me-if-you-get-lost.jpg" },
     { artist: "vampire weekend", album: "vampire weekend", year: 2008, cover: "vampire-weekend-vampire-weekend.jpg" },
     { artist: "vampire weekend", album: "contra", year: 2010, cover: "vampire-weekend-contra.jpg" },
     { artist: "vampire weekend", album: "modern vampires of the city", year: 2013, cover: "vampire-weekend-modern-vampires.jpg" },
+    { artist: "wait what", album: "the notorious xx", year: 2010, cover: "wait-what-the-notorious-xx.jpg" },
     { artist: "the weeknd", album: "house of balloons", year: 2011, cover: "the-weeknd-house-of-balloons.jpg" },
     { artist: "the weeknd", album: "starboy", year: 2016, cover: "the-weeknd-starboy.jpg" },
-    { artist: "the xx", album: "xx", year: 2009, cover: "the-xx-xx.jpg" }
+    { artist: "the xx", album: "xx", year: 2009, cover: "the-xx-xx.jpg" },
+    { artist: "yellowcard", album: "ocean avenue", year: 2003, cover: "yellowcard-ocean-avenue.jpg" }
 ];
 
 // Record collection functionality
@@ -2139,7 +2219,8 @@ function initializeBioNavigation() {
             }
         });
         defaultParagraph.style.display = 'block';
-        
+        animateContentIn(defaultParagraph);
+
         // Every section opens with something: work -> roblox,
         // create -> weird little ideas, think -> a random highlight.
         if (randomSection === 'work') {
@@ -2184,6 +2265,7 @@ function initializeBioNavigation() {
             const targetElement = document.getElementById(`bio-${targetParagraph}`);
             if (targetElement) {
                 targetElement.style.display = 'block';
+                animateContentIn(targetElement);
             }
             
             // Show appropriate right sidebar content based on section
@@ -3110,8 +3192,157 @@ function updateMusicPlaylistNavigation() {
 
 let currentReadIndex = 0;
 let availableReads = [];
-let currentReadList = 'recent'; // 'recent' or 'lastFiveYears'
+let currentReadList = 'thisYear'; // 'thisYear' | 'favorites' | 'annual-<year>'
 let currentAnnualIndex = 0; // For annual reading lists navigation
+
+// ---------- Reading bookshelf (this year + favorites) ----------
+const RB_SPINES = ["#4f5b63", "#6b5d51", "#5c6350", "#7a544e", "#455160", "#6f6657", "#544f61", "#5d6b68", "#7d6f4e", "#4a5a56"];
+const RB_MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+function rbHash(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
+function rbGenre(g) { const x = (g || '').toLowerCase(); if (x === 'f' || x === 'fiction') return 'fiction'; if (x === 'nf' || x === 'non-fiction' || x === 'nonfiction') return 'non-fiction'; return x; }
+function rbStars(r) { const v = parseFloat(r) || 0; let h = ''; for (let i = 0; i < 5; i++) { const f = Math.max(0, Math.min(1, v - i)); h += `<span class="st ${f >= 1 ? 'full' : (f >= 0.5 ? 'half' : 'empty')}">★</span>`; } return `<span class="rd-stars">${h}</span>`; }
+
+// Return the books for a shelf, in display order (most recent first).
+function getReadingShelfBooks(list) {
+    const rd = window.siteData?.favoriteReads?.value || window.siteData?.favoriteReads || {};
+    const ty = window.siteData?.thisYearReads?.value || window.siteData?.thisYearReads || {};
+    if (list === 'thisYear') {
+        // ty.books is in true reading (row) order, oldest first -> reverse for newest first
+        const books = Array.isArray(ty.books) ? ty.books.slice().reverse() : [];
+        const year = ty.year || '';
+        return books.map((b) => ({
+            title: b.title, author: b.author, rating: b.rating, genre: b.genre,
+            comment: b.comment || '', when: (b.month ? b.month + ' ' + year : ''),
+        }));
+    }
+    // favorites: merge recent + last five years, dedupe, sort by recency
+    const merged = [...(Array.isArray(rd.recentReads) ? rd.recentReads : []), ...(Array.isArray(rd.lastFiveYearsReads) ? rd.lastFiveYearsReads : [])];
+    const seen = new Set(); const favs = [];
+    merged.forEach((b) => {
+        const k = (b.title || '').toLowerCase() + '|' + (b.author || '').toLowerCase();
+        if (seen.has(k) || !b.title) return; seen.add(k);
+        const y = b.year || 0; const m = b.month || 0;
+        favs.push({
+            title: b.title, author: b.author, rating: b.rating, genre: b.genre,
+            comment: b.summary || b.comment || '', year: y, month: m,
+            when: (m >= 1 && m <= 12 ? RB_MONTHS[m - 1] + ' ' + (y || '') : (y ? String(y) : '')).trim(),
+        });
+    });
+    favs.sort((a, b) => (b.year - a.year) || (b.month - a.month) || ((parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0)));
+    return favs;
+}
+
+// Render a CSS-3D bookshelf into contentEl.
+function renderReadingBookshelf(contentEl, books) {
+    if (!contentEl) return;
+    contentEl.innerHTML = `
+        <div class="reading-shelf-row">
+            <button class="reading-shelf-arrow" data-dir="-1" aria-label="previous">‹</button>
+            <div class="reading-shelf-vp"><div class="reading-shelf"></div></div>
+            <button class="reading-shelf-arrow" data-dir="1" aria-label="next">›</button>
+        </div>
+        <div class="reading-shelf-detail"></div>`;
+    const shelf = contentEl.querySelector('.reading-shelf');
+    const vp = contentEl.querySelector('.reading-shelf-vp');
+    const detail = contentEl.querySelector('.reading-shelf-detail');
+
+    const bookData = new Map();
+    const selectBook = (el, b) => {
+        shelf.querySelectorAll('.reading-book.selected').forEach((x) => x.classList.remove('selected'));
+        el.classList.add('selected');
+        const meta = [`by ${escapeHtml((b.author || '').toLowerCase())}`];
+        const g = rbGenre(b.genre); if (g) meta.push(g);
+        if (b.when) meta.push('read ' + b.when);
+        let m = `<span>${meta.join(' · ')}</span>`;
+        if (b.rating) m += rbStars(b.rating);
+        const c = escapeHtml(b.comment || '');
+        detail.innerHTML = `<p class="rd-title">${escapeHtml((b.title || '').toLowerCase())}</p><p class="rd-meta">${m}</p>${c ? `<p class="rd-summary">${c}</p>` : '<p class="rd-empty">detailed notes to come.</p>'}`;
+        detail.classList.add('show');
+    };
+
+    books.forEach((b) => {
+        const h = rbHash((b.title + b.author).toLowerCase());
+        const el = document.createElement('div');
+        el.className = 'reading-book';
+        el.style.background = RB_SPINES[h % RB_SPINES.length];
+        el.style.width = (31 + (h % 14)) + 'px';
+        el.dataset.hashh = 150 + ((h >> 4) % 58);
+        if ((parseFloat(b.rating) || 0) >= 4.5) el.classList.add('fav');
+        el.innerHTML = `<span class="rb-title">${escapeHtml(b.title)}</span><span class="rb-author">${escapeHtml(b.author)}</span>`;
+        el.tabIndex = 0;
+        el.setAttribute('role', 'button');
+        bookData.set(el, b);
+        // keyboard access (pointer/tap selection is handled on pointerup below)
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectBook(el, b); }
+        });
+        shelf.appendChild(el);
+    });
+
+    // size each spine so its title fits in one column (no overlap)
+    const CAP = 258;
+    shelf.querySelectorAll('.reading-book').forEach((el) => {
+        const title = el.querySelector('.rb-title'); const author = el.querySelector('.rb-author');
+        title.style.fontSize = ''; title.style.maxHeight = 'none'; el.style.height = 'auto';
+        let titleH = title.offsetHeight; const authorH = author.offsetHeight; const chrome = authorH + 30;
+        let bookH = Math.max(+el.dataset.hashh, titleH + chrome);
+        if (bookH > CAP) {
+            bookH = CAP; const avail = CAP - chrome;
+            title.style.fontSize = (parseFloat(getComputedStyle(title).fontSize) * (avail / titleH) * 0.97) + 'px';
+            titleH = title.offsetHeight;
+        }
+        el.style.height = bookH + 'px';
+        title.style.maxHeight = (bookH - chrome + 8) + 'px';
+    });
+
+    // arrows
+    const prev = contentEl.querySelector('[data-dir="-1"]');
+    const next = contentEl.querySelector('[data-dir="1"]');
+    const updateArrows = () => {
+        prev.disabled = vp.scrollLeft <= 2;
+        next.disabled = vp.scrollLeft >= (vp.scrollWidth - vp.clientWidth - 2);
+    };
+    prev.addEventListener('click', () => { vp.scrollLeft -= vp.clientWidth * 0.8; setTimeout(updateArrows, 350); });
+    next.addEventListener('click', () => { vp.scrollLeft += vp.clientWidth * 0.8; setTimeout(updateArrows, 350); });
+    vp.addEventListener('scroll', updateArrows, { passive: true });
+
+    // drag-to-scroll + tap-to-select (pointer events, captured to vp so there are no global leaks).
+    // NOTE: pointer capture retargets the native `click`, so a plain click listener on the spines
+    // never fires. We detect tap-vs-drag here and select the pressed book on pointerup if it wasn't a drag.
+    let down = false; let sx = 0; let sc = 0; let dragged = false; let downEl = null;
+    vp.addEventListener('pointerdown', (e) => {
+        down = true; dragged = false;
+        downEl = e.target.closest('.reading-book');
+        sx = e.clientX; sc = vp.scrollLeft;
+        vp.setPointerCapture(e.pointerId);
+        vp.classList.add('dragging');
+    });
+    vp.addEventListener('pointermove', (e) => {
+        if (!down) return;
+        const dx = e.clientX - sx;
+        if (Math.abs(dx) > 5) dragged = true;
+        vp.scrollLeft = sc - dx;
+    });
+    const endDrag = () => {
+        if (!down) return;
+        down = false; vp.classList.remove('dragging');
+        if (!dragged && downEl) {
+            const b = bookData.get(downEl);
+            if (b) selectBook(downEl, b);
+        }
+        downEl = null;
+        updateArrows();
+    };
+    vp.addEventListener('pointerup', endDrag);
+    vp.addEventListener('pointercancel', () => { down = false; dragged = false; downEl = null; vp.classList.remove('dragging'); });
+    updateArrows();
+
+    // auto-select the most recent book (first spine) so the detail panel isn't empty on open
+    const firstBook = shelf.querySelector('.reading-book');
+    if (firstBook && bookData.has(firstBook)) {
+        selectBook(firstBook, bookData.get(firstBook));
+    }
+}
 
 function showFavoriteReads(container) {
     // Get favorite reads and annual reading lists from stored data
@@ -3154,28 +3385,23 @@ function showFavoriteReads(container) {
             lastFiveYearsReadsSample: lastFiveYearsReads.slice(0, 2)
         });
         
-        // Set initial list based on currentReadList, default to recent
-        if (!currentReadList) currentReadList = 'recent';
-        
-        if (currentReadList === 'recent') {
-            availableReads = recentReads || [];
+        // Default view is the "this year" bookshelf. Legacy favorites names map onto favorites.
+        if (!currentReadList) {
+            currentReadList = 'thisYear';
+        } else if (currentReadList === 'recent' || currentReadList === 'lastFiveYears') {
+            currentReadList = 'favorites';
+        }
+        // Bookshelf views manage their own display; keep the card-nav index harmless.
+        if (currentReadList === 'thisYear' || currentReadList === 'favorites') {
+            availableReads = [];
             currentReadIndex = 0;
-            console.log('Set availableReads for recent:', availableReads.length, 'items:', availableReads);
-        } else if (currentReadList === 'lastFiveYears') {
-            availableReads = lastFiveYearsReads || [];
-            // Don't randomize - start at beginning for consistent navigation
-            currentReadIndex = 0;
-            console.log('Set availableReads for lastFiveYears:', availableReads.length, 'items:', availableReads);
-        } else if (currentReadList === 'thisYear') {
-            // For "this year", show the monthly list format instead of cards
-            // Don't return early - let the HTML structure be created first
         }
         
         // Generate stats text
         let statsText = "";
         if (readsData.stats) {
             const s = readsData.stats;
-            statsText = `i've read ${s.total} books so far in ${s.year} (${s.nonFiction} non-fiction, ${s.fiction} fiction). some recent favorites below, and <a href="https://docs.google.com/spreadsheets/d/13AxX67tM8fFc_aPIbTVJx_yC5MbOZx-CLNJyNTyT3cQ/edit?gid=393005093#gid=393005093" target="_blank" rel="noopener" class="external-link">full list here</a>.`;
+            statsText = `i've read <span class="count-num" data-count="${s.total}">${s.total}</span> books so far in ${s.year} (<span class="count-num" data-count="${s.nonFiction}">${s.nonFiction}</span> non-fiction, <span class="count-num" data-count="${s.fiction}">${s.fiction}</span> fiction). some recent favorites below, and <a href="https://docs.google.com/spreadsheets/d/13AxX67tM8fFc_aPIbTVJx_yC5MbOZx-CLNJyNTyT3cQ/edit?gid=393005093#gid=393005093" target="_blank" rel="noopener" class="external-link">full list here</a>.`;
         }
 
         // Build navigation items for annual lists + this year
@@ -3199,84 +3425,44 @@ function showFavoriteReads(container) {
         console.log('DEBUG: Does 2025 (number) exist in allYears?', allYears.includes(2025));
         console.log('DEBUG: Does "2025" (string) exist in allYears?', allYears.includes("2025"));
         
-        // Create navigation items starting with "this year" if we have thisYearReads data
-        let navItems = [];
-        if (thisYearReadsData && thisYearReadsData.type === 'thisYear') {
-            navItems.push(`<span class="reads-nav-item ${currentReadList === 'thisYear' ? 'active' : 'inactive'}" data-list="thisYear">this year</span>`);
-        }
-        
-        // Add regular annual navigation items (including 2025)
+        // Second nav line: the annual year lists (these keep their existing format)
         const yearNavItems = uniqueYears
             .map(year => `<span class="reads-nav-item ${currentReadList === `annual-${year}` ? 'active' : 'inactive'}" data-list="annual-${year}">${year}</span>`);
-        
-        navItems = navItems.concat(yearNavItems);
-        const annualNavItems = navItems.join('<span class="separator">|</span>');
+        const annualNavItems = yearNavItems.join('<span class="separator">|</span>');
         
         console.log('Annual nav items generated:', annualNavItems);
         console.log('Line break will be added:', annualNavItems.length > 0);
         
         container.innerHTML = `
             ${statsText ? `<div class="reading-stats"><p class="stats-text">${statsText}</p></div>` : ""}
-            
+
             <div class="reads-nav-container">
-                <span class="reads-nav-item ${currentReadList === 'recent' ? 'active' : 'inactive'}" data-list="recent">recent favs</span>
-                ${lastFiveYearsReads.length > 0 ? `
-                    <span class="separator">|</span>
-                    <span class="reads-nav-item ${currentReadList === 'lastFiveYears' ? 'active' : 'inactive'}" data-list="lastFiveYears">last five years favs</span>
-                ` : ''}
-                ${annualNavItems.length > 0 ? '<br>' : ''}
-                ${annualNavItems.length > 0 ? annualNavItems : ''}
+                <span class="reads-nav-item ${currentReadList === 'thisYear' ? 'active' : 'inactive'}" data-list="thisYear">this year</span>
+                <span class="separator">|</span>
+                <span class="reads-nav-item ${currentReadList === 'favorites' ? 'active' : 'inactive'}" data-list="favorites">favorites</span>
+                ${annualNavItems.length > 0 ? `<span class="reads-year-nav">${annualNavItems}</span>` : ''}
             </div>
-            
+
             <div style="margin-top: 20px;"></div>
-            
-            <div class="read-content">
-                <div class="read-card-navigation">
-                    <button class="nav-arrow nav-arrow-left" id="prev-read">‹</button>
-                    <div class="read-card">
-                        <p class="read-title-with-rating" id="read-title-rating">loading...</p>
-                        <p class="read-author" id="read-author">loading...</p>
-                        <p class="read-genre-rating" id="read-genre-rating">loading...</p>
-                        <p class="read-summary" id="read-summary">loading...</p>
-                    </div>
-                    <button class="nav-arrow nav-arrow-right" id="next-read">›</button>
-                </div>
-            </div>
+
+            <div class="read-content" id="read-content"></div>
         `;
-        
+
         // setup list nav
         attachReadNavListeners();
-        
-        // If currentReadList is 'thisYear', display the this year view instead of cards
-        if (currentReadList === 'thisYear') {
-            displayThisYearReads();
-            updateReadNavigation();
+
+        // count-up the live reading numbers in the stat line
+        container.querySelectorAll('.reading-stats .count-num').forEach(countUpEl);
+
+        // Route the content: this year + favorites use the bookshelf; annual years keep their list format
+        const readContentEl = document.querySelector('.read-content');
+        if (currentReadList === 'thisYear' || currentReadList === 'favorites') {
+            renderReadingBookshelf(readContentEl, getReadingShelfBooks(currentReadList));
+        } else if (currentReadList && currentReadList.startsWith('annual-')) {
+            switchReadList(currentReadList); // reuses the existing annual rendering path
         } else {
-            // arrow nav for cards
-            displayCurrentRead();
-            updateReadNavigation();
-            
-            // Attach event listeners AFTER displayCurrentRead to ensure buttons exist
-            const prevButton = document.getElementById('prev-read');
-            const nextButton = document.getElementById('next-read');
-            
-            if (prevButton && nextButton) {
-                // Remove any existing listeners first to prevent duplicates
-                const newPrevButton = prevButton.cloneNode(true);
-                const newNextButton = nextButton.cloneNode(true);
-                prevButton.parentNode.replaceChild(newPrevButton, prevButton);
-                nextButton.parentNode.replaceChild(newNextButton, nextButton);
-                
-                // Attach fresh listeners
-                newPrevButton.addEventListener('click', () => {
-                    console.log('Prev button clicked, availableReads:', availableReads.length);
-                    navigateRead(-1);
-                });
-                newNextButton.addEventListener('click', () => {
-                    console.log('Next button clicked, availableReads:', availableReads.length);
-                    navigateRead(1);
-                });
-            }
+            currentReadList = 'favorites';
+            renderReadingBookshelf(readContentEl, getReadingShelfBooks('favorites'));
         }
     } else {
         container.innerHTML = `
@@ -3319,47 +3505,21 @@ function switchReadList(listType) {
     if (!readsData) return;
     
     currentReadList = listType;
-    
+
     // Update available reads based on selected list
-    if (listType === 'recent') {
-        // Reset annual view state
-        console.log('SWITCHING TO RECENT - resetting annual state');
-        currentAnnualYear = null;
-        currentYearData = null;
-        availableReads = readsData.recentReads || readsData.items || [];
-        console.log('Recent reads loaded:', availableReads.length, 'items:', availableReads);
-        currentReadIndex = 0; // Start at beginning for recent reads
-        console.log('Starting at index:', currentReadIndex);
-        // Need to rebuild the entire reading section to switch from annual list view to card view
-        console.log('CALLING showFavoriteReads to rebuild UI');
-        const container = document.getElementById('dynamic-content');
-        if (container) {
-            showFavoriteReads(container);
+    if (listType === 'thisYear' || listType === 'favorites' ||
+        listType === 'recent' || listType === 'lastFiveYears') {
+        // Bookshelf views (recent/lastFiveYears are legacy names that now map to favorites)
+        if (listType === 'recent' || listType === 'lastFiveYears') {
+            currentReadList = 'favorites';
+            listType = 'favorites';
         }
-    } else if (listType === 'lastFiveYears') {
-        // Reset annual view state
-        console.log('SWITCHING TO LAST FIVE YEARS - resetting annual state');
         currentAnnualYear = null;
         currentYearData = null;
-        availableReads = Array.isArray(readsData.lastFiveYearsReads) 
-            ? readsData.lastFiveYearsReads 
-            : [];
-        console.log('Last five years reads loaded:', availableReads.length, 'items:', availableReads);
-        // Start at beginning for consistent navigation
+        availableReads = [];
         currentReadIndex = 0;
-        console.log('Starting at index:', currentReadIndex);
-        // Need to rebuild the entire reading section to switch from annual list view to card view
-        console.log('CALLING showFavoriteReads to rebuild UI');
-        const container = document.getElementById('dynamic-content');
-        if (container) {
-            showFavoriteReads(container);
-        }
-    } else if (listType === 'thisYear') {
-        // this year monthly format
-        console.log('SWITCHING TO THIS YEAR - showing monthly format');
-        currentAnnualYear = null;
-        currentYearData = null;
-        displayThisYearReads();
+        const readContentEl = document.querySelector('.read-content');
+        renderReadingBookshelf(readContentEl, getReadingShelfBooks(currentReadList));
         // Don't return early - let navigation styling update below
     } else if (listType.startsWith('annual-')) {
         // annual lists - show as tracklist not cards
@@ -4251,6 +4411,7 @@ function updatePodcastNavigation() {
 
 // Function to initialize everything after ensuring resources are loaded
 function initializeEverything() {
+    initContentCrossfade();
     initializeLoading();
     // Highlight listeners must exist before bio navigation runs - it opens a
     // default panel by triggering one of them.
