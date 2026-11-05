@@ -4031,7 +4031,7 @@ function prevAnnualList() {
 
 function showRecordCollection(container) {
     container.innerHTML = `
-        <p class="play-category-description records-intro">not about amassing as many records as possible. the only rule: every one of these was, at some point, my favorite album to put on.</p>
+        <p class="play-category-description records-intro">less about amassing as many records as possible, but ensuring every record here was, at some point, my favorite album to put on.</p>
         <div class="record-swiper-container">
             <div class="swiper record-swiper">
                 <div class="swiper-wrapper" id="dynamic-record-carousel">
