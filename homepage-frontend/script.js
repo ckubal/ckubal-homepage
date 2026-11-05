@@ -2001,16 +2001,16 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
     recordCollectionInitialized = true;
     console.log('Initializing record collection with Swiper...');
     
-    // Generate Swiper slides for all records
-    const recordHTML = recordCollection.map(record => `
-        <div class="swiper-slide">
-            <img src="assets/records/${record.cover}" alt="${record.album}" class="record-cover" loading="lazy" decoding="async" />
+    // Slides are rendered on demand by Swiper's Virtual module, so only the
+    // handful near the viewport exist in the DOM. With all 162 in the DOM,
+    // every transition restart cost ~200ms of main thread on phones and the
+    // continuous ticker hitched at each cover.
+    const recordSlides = recordCollection.map(record => `
+            <img src="assets/records/${record.cover}" alt="${record.album}" class="record-cover" decoding="async" />
             <div class="record-artist">${record.artist}</div>
             <div class="record-album">${record.album}</div>
-        </div>
-    `).join('');
-    
-    recordCarousel.innerHTML = recordHTML;
+    `);
+    recordCarousel.innerHTML = '';
     
     // wait a bit for dom then setup swiper
     setTimeout(() => {
@@ -2038,18 +2038,20 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
                 enabled: true,
                 onlyInViewport: true,
             },
-            // Glide to each cover, rest on it briefly, glide on. (A true
-            // continuous ticker was tried: Swiper restarts a transition per
-            // slide and that restart costs a visible hitch on phones, so the
-            // rest is deliberate and hides it.) Resumes after a swipe; pauses
-            // while the mouse is over it on desktop.
+            virtual: {
+                slides: recordSlides,
+                addSlidesBefore: 3,
+                addSlidesAfter: 3,
+            },
+            // Continuous ticker: no pause between slides, each slide takes
+            // `speed` ms to pass, linear easing is set in CSS. Resumes after
+            // a swipe; pauses while the mouse is over it on desktop.
             autoplay: {
-                delay: 600,
+                delay: 0,
                 disableOnInteraction: false,
                 pauseOnMouseEnter: true,
             },
-            speed: 1100,
-            lazyPreloadPrevNext: 3,
+            speed: 2000,
             coverflowEffect: {
                 rotate: 35,
                 stretch: -80,
