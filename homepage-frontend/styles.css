@@ -2684,8 +2684,10 @@ a.build-slide-link:hover .build-title {
     }
 
     /* Mobile slides - proper sizing for centering */
+    /* Slide width is set inline by Swiper from slidesPerView. Forcing it to
+       auto here made slides ~150px while Swiper positioned them as ~295px,
+       which pushed the active slide thousands of px off-screen on phones. */
     .record-swiper .swiper-slide {
-        width: auto !important; /* Let Swiper calculate based on slidesPerView */
         text-align: center !important;
         background: rgba(255, 255, 255, 0.03) !important;
         border-radius: 8px !important;
@@ -2698,7 +2700,6 @@ a.build-slide-link:hover .build-title {
     }
     
     .shoe-swiper .swiper-slide {
-        width: auto !important;
         text-align: center !important;
         background: rgba(255, 255, 255, 0.03) !important;
         border-radius: 8px !important;
@@ -2711,7 +2712,6 @@ a.build-slide-link:hover .build-title {
     }
     
     .jersey-swiper .swiper-slide {
-        width: auto !important;
         text-align: center !important;
         background: rgba(255, 255, 255, 0.03) !important;
         border-radius: 8px !important;
