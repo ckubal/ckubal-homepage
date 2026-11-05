@@ -4338,7 +4338,6 @@ function showRecordCollection(container) {
                 <div class="swiper-button-prev"></div>
             </div>
         </div>
-        <p class="records-hint">tap a record to flip it over</p>
     `;
     // init records - wait for page readiness
     waitForReadyThenInitialize(() => initializeRecordCollection('dynamic-record-carousel'), 'records');

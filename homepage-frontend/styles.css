@@ -2226,6 +2226,7 @@ button.nav-arrow,
     font-size: 0.68rem;
     line-height: 1.45;
     color: var(--text-color);
+    text-transform: lowercase;
 }
 
 .record-swiper .record-tracks li {
@@ -2285,13 +2286,6 @@ button.nav-arrow,
 
 [data-theme="light"] .record-swiper .record-play .list-spotify-icon {
     filter: none;
-}
-
-.records-hint {
-    margin: 6px 0 0;
-    font-size: 0.72rem;
-    color: var(--text-secondary);
-    opacity: 0.7;
 }
 
 .record-swiper .record-cover {
@@ -2920,11 +2914,6 @@ a.build-slide-link:hover .build-title {
         padding: 10px 8px;
     }
 
-    .records-hint {
-        text-align: center;
-        font-size: 0.8rem;
-    }
-    
     /* the image is the point of the card: fill the slide width (sources are 500x312 / 500x342) */
     .shoe-swiper .shoe-image {
         width: 100% !important;
