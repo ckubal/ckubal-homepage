@@ -2626,7 +2626,7 @@ a.build-slide-link:hover .build-title {
     .record-swiper-container {
         width: 100% !important;
         max-width: 100% !important;
-        height: 320px !important; /* More height for album text */
+        height: auto !important; /* hug the card instead of a fixed 320px */
         margin: 0 auto !important;
         padding: 0 10px !important; /* Small padding for edge visibility */
         overflow: hidden !important;
@@ -2687,11 +2687,18 @@ a.build-slide-link:hover .build-title {
     /* Slide width is set inline by Swiper from slidesPerView. Forcing it to
        auto here made slides ~150px while Swiper positioned them as ~295px,
        which pushed the active slide thousands of px off-screen on phones. */
+    /* records: the swiper and its cards size to the cover, not to a fixed height */
+    .record-swiper {
+        height: auto;
+        padding: 10px 20px 14px;
+    }
+
     .record-swiper .swiper-slide {
+        height: auto !important;
         text-align: center !important;
         background: rgba(255, 255, 255, 0.03) !important;
         border-radius: 8px !important;
-        padding: 15px !important;
+        padding: 14px 14px 16px !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         display: flex !important;
         flex-direction: column !important;
@@ -2723,10 +2730,21 @@ a.build-slide-link:hover .build-title {
         align-items: center !important;
     }
     
+    /* the cover is the point of the card: fill the slide width */
     .record-swiper .record-cover {
-        width: 120px !important;
-        height: 120px !important;
-        margin-bottom: 8px !important;
+        width: 220px !important;
+        max-width: 100% !important;
+        height: auto !important;
+        aspect-ratio: 1 / 1;
+        margin-bottom: 10px !important;
+    }
+
+    .record-swiper .record-artist {
+        font-size: 0.9rem;
+    }
+
+    .record-swiper .record-album {
+        font-size: 1rem;
     }
     
     .shoe-swiper .shoe-image {
@@ -2843,12 +2861,9 @@ a.build-slide-link:hover .build-title {
         font-size: 1.6rem;
     }
     
-    /* Collection swipers on very small screens */
-    .record-swiper .record-cover {
-        width: 100px;
-        height: 100px;
-    }
-    
+    /* Collection swipers on very small screens (record covers keep the
+       full-width sizing from the 768px rules) */
+
     .shoe-swiper .shoe-image {
         width: 150px;
     }
