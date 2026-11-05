@@ -2126,12 +2126,6 @@ button.nav-arrow,
     opacity: 1;
 }
 
-/* continuous autoplay (delay 0) needs linear easing or it pulses per slide */
-.record-swiper .swiper-wrapper,
-.record-swiper .swiper-slide {
-    transition-timing-function: linear !important;
-}
-
 .record-swiper .swiper-slide {
     text-align: center;
     font-size: 18px;
