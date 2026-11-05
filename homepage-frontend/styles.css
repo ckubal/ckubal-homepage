@@ -2100,6 +2100,12 @@ button.nav-arrow,
 
 
 /* Main Record Swiper */
+/* one-line philosophy above the records carousel; matches the carousel width */
+.records-intro {
+    max-width: 500px;
+    margin-bottom: 12px;
+}
+
 .record-swiper-container {
     width: 100%;
     max-width: 500px;
