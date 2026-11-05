@@ -56,3 +56,11 @@ inspo\ landscapeimages/
 homepage-backend/functions/package-lock.json
 # Deploy copy for Hostinger (source of truth is homepage-frontend/)
 docroot/
+
+# Personal notes
+CHARLIE_PROFILE.md
+
+# Backend credentials (Firebase dotenv); the example file is tracked
+homepage-backend/functions/.env
+homepage-backend/functions/.env.*
+!homepage-backend/functions/.env.example

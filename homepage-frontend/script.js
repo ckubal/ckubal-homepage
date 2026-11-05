@@ -651,12 +651,11 @@ async function fetchData() {
         
     } catch (error) {
         console.error('Error fetching data:', error);
-        console.log('Current hostname:', window.location.hostname);
-        console.log('Current protocol:', window.location.protocol);
-        
-        // Always use sample data when API fails (for local testing)
-        console.log('Using sample data for local testing');
-        // Don't use sample data - let the real API load
+        // First load failed: say so instead of leaving "loading..." up forever.
+        // On a background refresh, keep showing the last good data.
+        if (!window.siteData) {
+            showError();
+        }
     }
 }
 
@@ -1088,7 +1087,7 @@ function initializeTasteCategories() {
         });
         
         if (!titleEl || !listEl) {
-            console.error('displayRandomTasteList: Missing elements for category:', category);
+            // The inline taste elements aren't in the current markup; nothing to render.
             return;
         }
         
@@ -1378,7 +1377,7 @@ function initializeShoeCollectionOriginal() {
         
         carousel.innerHTML = `
             <div class="shoe-item">
-                <img src="assets/shoes/${shoe.image}" alt="${shoe.name}" class="shoe-image" />
+                <img src="assets/shoes/${shoe.image}" alt="${shoe.name}" class="shoe-image" loading="lazy" decoding="async" />
                 <div class="shoe-brand">${shoe.brand}</div>
                 <div class="shoe-name">${shoe.name}</div>
                 <div class="shoe-colorway">'${shoe.colorway}'</div>
@@ -1444,7 +1443,7 @@ function initializeShoeCollection(carouselId = 'shoe-carousel') {
     // Generate Swiper slides for all shoes
     const shoeHTML = shoeCollection.map(shoe => `
         <div class="swiper-slide">
-            <img src="assets/shoes/${shoe.image}" alt="${shoe.name}" class="shoe-image" />
+            <img src="assets/shoes/${shoe.image}" alt="${shoe.name}" class="shoe-image" loading="lazy" decoding="async" />
             <div class="shoe-brand">${shoe.brand}</div>
             <div class="shoe-name">${shoe.name}</div>
             <div class="shoe-colorway">'${shoe.colorway}'</div>
@@ -1590,7 +1589,7 @@ function initializeJerseyCollection(carouselId = 'jersey-carousel') {
     // Generate Swiper slides for all jerseys
     const jerseyHTML = jerseyCollection.map(jersey => `
         <div class="swiper-slide">
-            <img src="assets/jerseys/${jersey.image}" alt="${jersey.player} ${jersey.team}" class="jersey-image" />
+            <img src="assets/jerseys/${jersey.image}" alt="${jersey.player} ${jersey.team}" class="jersey-image" loading="lazy" decoding="async" />
             <div class="jersey-team">${jersey.team}</div>
             <div class="jersey-player">${jersey.player}</div>
             <div class="jersey-number">#${jersey.number}</div>
@@ -2005,7 +2004,7 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
     // Generate Swiper slides for all records
     const recordHTML = recordCollection.map(record => `
         <div class="swiper-slide">
-            <img src="assets/records/${record.cover}" alt="${record.album}" class="record-cover" />
+            <img src="assets/records/${record.cover}" alt="${record.album}" class="record-cover" loading="lazy" decoding="async" />
             <div class="record-artist">${record.artist}</div>
             <div class="record-album">${record.album}</div>
         </div>
@@ -4481,14 +4480,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Optional: Add click to refresh
+// Keyboard navigation for the panels. (Cmd/Ctrl+R is deliberately left alone
+// so a normal page reload works.)
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'r' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        initializeLoading();
-        fetchData();
-    }
-    
     // Arrow key navigation for music playlists (when favorite-music is active)
     if (document.querySelector('.highlight.clickable[data-target="favorite-music"].active')) {
         if (e.key === 'ArrowLeft') {

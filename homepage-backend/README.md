@@ -9,15 +9,13 @@ npm install
 ```
 
 ## config
-needs firebase config for:
-- spotify (client_id, client_secret)
-- strava (client_id, client_secret)  
-- whoop (client_id, client_secret)
+credentials live in `functions/.env` (gitignored; the firebase cli loads it at deploy time):
 
-set em with:
 ```bash
-firebase functions:config:set spotify.client_id="..." spotify.client_secret="..."
+cp functions/.env.example functions/.env   # then fill in
 ```
+keys: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `WHOOP_CLIENT_ID`, `WHOOP_CLIENT_SECRET`
+
 
 ## deploy
 ```bash
@@ -29,3 +27,5 @@ firebase deploy --only functions
 - `/spotifyCallback` - spotify oauth
 - `/stravaExchangeToken` - strava token exchange
 - `/whoopCallback` - whoop oauth
+
+the old location/steps/health write endpoints are commented out in `index.js` (they had no auth).

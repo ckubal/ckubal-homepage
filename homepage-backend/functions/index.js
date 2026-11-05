@@ -7,18 +7,47 @@ const { google } = require("googleapis"); // eslint-disable-line no-unused-vars
 admin.initializeApp();
 const db = admin.firestore();
 
+// Credentials come from functions/.env, which the Firebase CLI loads at deploy
+// time. (functions.config() is deprecated and shuts down in 2027.)
+const CREDS = {
+    spotify: { clientId: process.env.SPOTIFY_CLIENT_ID, clientSecret: process.env.SPOTIFY_CLIENT_SECRET },
+    strava: { clientId: process.env.STRAVA_CLIENT_ID, clientSecret: process.env.STRAVA_CLIENT_SECRET },
+    whoop: { clientId: process.env.WHOOP_CLIENT_ID, clientSecret: process.env.WHOOP_CLIENT_SECRET },
+};
+
+// Several fetchers in one cycle read the same published reading sheet; cache
+// each CSV URL briefly so a cycle downloads it once instead of five times.
+const CSV_CACHE_TTL_MS = 2 * 60 * 1000;
+const csvCache = new Map();
+async function fetchCsvCached(csvUrl) {
+    const hit = csvCache.get(csvUrl);
+    if (hit && Date.now() - hit.at < CSV_CACHE_TTL_MS) {
+        return hit.response;
+    }
+    const response = await axios.get(csvUrl, { maxRedirects: 5, timeout: 10000 });
+    csvCache.set(csvUrl, { at: Date.now(), response });
+    return response;
+}
+
+// Spotify access tokens last an hour; reuse one across the ~20 calls per cycle
+// instead of refreshing on every call.
+let spotifyTokenCache = { token: null, expiresAt: 0 };
+
 // --- Helper Functions for API Calls (Implement details later) ---
 
 // Helper function to ensure Spotify token is valid
 async function ensureSpotifyToken() {
+    if (spotifyTokenCache.token && Date.now() < spotifyTokenCache.expiresAt) {
+        return spotifyTokenCache.token;
+    }
     const tokenDoc = await db.collection("config").doc("spotify").get();
     if (!tokenDoc.exists) {
         throw new Error("No Spotify refresh token found");
     }
 
     const refreshToken = tokenDoc.data().refresh_token;
-    const clientId = functions.config().spotify.client_id;
-    const clientSecret = functions.config().spotify.client_secret;
+    const clientId = CREDS.spotify.clientId;
+    const clientSecret = CREDS.spotify.clientSecret;
 
     // Get fresh access token using refresh token
     const tokenResponse = await axios.post("https://accounts.spotify.com/api/token",
@@ -42,6 +71,11 @@ async function ensureSpotifyToken() {
         });
     }
 
+    const expiresInMs = (tokenResponse.data.expires_in || 3600) * 1000;
+    spotifyTokenCache = {
+        token: tokenResponse.data.access_token,
+        expiresAt: Date.now() + expiresInMs - 60 * 1000,
+    };
     return tokenResponse.data.access_token;
 }
 
@@ -357,8 +391,8 @@ async function getWhoopData() {
         }
 
         const { refresh_token: refreshToken, access_token: accessToken, expires_at: expiresAt } = tokenDoc.data();
-        const clientId = functions.config().whoop?.client_id;
-        const clientSecret = functions.config().whoop?.client_secret;
+        const clientId = CREDS.whoop.clientId;
+        const clientSecret = CREDS.whoop.clientSecret;
 
         if (!clientId || !clientSecret) {
             return { status: "WHOOP not configured", performance: null, fetchedAt: new Date() };
@@ -455,7 +489,7 @@ async function getBookData() {
             "2PACX-1vQjPR6atSEfc5ItyFLmzEzabJeXG_Tit6_Bbmwu31_JptS4trGGtDR0zla6Q99yNtK9j9VS3VVsf5Ug/" +
             "pub?gid=1869146893&single=true&output=csv";
 
-        const response = await axios.get(csvUrl);
+        const response = await fetchCsvCached(csvUrl);
         const csvText = response.data;
 
         // Split into rows and filter out empty ones
@@ -538,7 +572,7 @@ async function getFavoriteRappers() {
             "2PACX-1vQjPR6atSEfc5ItyFLmzEzabJeXG_Tit6_Bbmwu31_JptS4trGGtDR0zla6Q99yNtK9j9VS3VVsf5Ug/" +
             "pub?gid=1869146893&single=true&output=csv";
 
-        const response = await axios.get(csvUrl);
+        const response = await fetchCsvCached(csvUrl);
         const csvText = response.data;
 
         // Split into rows and filter out empty ones
@@ -598,7 +632,7 @@ async function getTasteMusicLists() {
             "2PACX-1vQjPR6atSEfc5ItyFLmzEzabJeXG_Tit6_Bbmwu31_JptS4trGGtDR0zla6Q99yNtK9j9VS3VVsf5Ug/" +
             "pub?gid=1869146893&single=true&output=csv";
 
-        const response = await axios.get(csvUrl);
+        const response = await fetchCsvCached(csvUrl);
         const csvText = response.data;
         const rows = csvText.split("\n").filter((row) => row.trim() !== "");
 
@@ -793,10 +827,7 @@ async function getThisYearReads() {
 
     try {
         functions.logger.info(`Fetching CSV from URL: ${csvUrl}`);
-        const response = await axios.get(csvUrl, {
-            maxRedirects: 5,
-            timeout: 10000,
-        });
+        const response = await fetchCsvCached(csvUrl);
         const rows = response.data.trim().split("\n");
         functions.logger.info(`Fetched CSV, total rows: ${rows.length}`);
 
@@ -1101,10 +1132,7 @@ async function getAnnualReadingLists() {
             functions.logger.info(`Fetching ${year} data from GID ${gid}`);
 
             try {
-                const response = await axios.get(csvUrl, {
-                    maxRedirects: 5,
-                    timeout: 10000,
-                });
+                const response = await fetchCsvCached(csvUrl);
                 const rows = response.data.trim().split("\n");
 
                 const fictionBooks = [];
@@ -1453,7 +1481,7 @@ async function getFavoriteReads() {
             "2PACX-1vQjPR6atSEfc5ItyFLmzEzabJeXG_Tit6_Bbmwu31_JptS4trGGtDR0zla6Q99yNtK9j9VS3VVsf5Ug/" +
             "pub?gid=1869146893&single=true&output=csv";
 
-        const response = await axios.get(csvUrl);
+        const response = await fetchCsvCached(csvUrl);
         const csvText = response.data;
         const rows = csvText.split("\n").filter((row) => row.trim() !== "");
 
@@ -1880,8 +1908,8 @@ async function getStravaDataDirect() {
         if (expiresAt <= now) {
             functions.logger.info("Strava token expired, refreshing...");
 
-            const clientId = functions.config().strava?.client_id;
-            const clientSecret = functions.config().strava?.client_secret;
+            const clientId = CREDS.strava.clientId;
+            const clientSecret = CREDS.strava.clientSecret;
 
             const refreshResponse = await axios.post("https://www.strava.com/oauth/token", {
                 client_id: clientId,
@@ -2161,8 +2189,8 @@ exports.spotifyCallback = functions.https.onRequest(async (req, res) => {
     }
 
     try {
-        const clientId = functions.config().spotify.client_id;
-        const clientSecret = functions.config().spotify.client_secret;
+        const clientId = CREDS.spotify.clientId;
+        const clientSecret = CREDS.spotify.clientSecret;
         const redirectUri = "https://us-central1-ckubal-homepage-be.cloudfunctions.net/spotifyCallback";
 
         // Exchange code for tokens
@@ -2196,7 +2224,7 @@ exports.spotifyCallback = functions.https.onRequest(async (req, res) => {
 });
 
 exports.spotifyAuth = functions.https.onRequest(async (req, res) => {
-    const clientId = functions.config().spotify.client_id;
+    const clientId = CREDS.spotify.clientId;
     const redirectUri = "https://us-central1-ckubal-homepage-be.cloudfunctions.net/spotifyCallback";
     const scopes = "user-read-currently-playing user-read-recently-played user-top-read";
 
@@ -2331,6 +2359,13 @@ exports.refreshData = functions.https.onRequest(async (req, res) => {
         res.status(500).json({ success: false, error: "Error refreshing data" });
     }
 });
+
+/* ---------------------------------------------------------------------------
+   DISABLED 2026-11-04: unauthenticated write endpoints for the retired iOS
+   location/health tracker (updateLocation, updateCity, saveFCMToken,
+   sendLocationTrackerSilentPush, updateSteps, updateHealth, getHealthData,
+   configureGoogleSheets). Anyone on the internet could POST to them. To bring
+   one back, uncomment it and add an auth check (e.g. a shared secret header).
 
 // --- Location Update Function ---
 exports.updateLocation = functions.https.onRequest(async (req, res) => {
@@ -2642,6 +2677,7 @@ exports.configureGoogleSheets = functions.https.onRequest(async (req, res) => {
         res.status(500).send("Failed to configure Google Sheets");
     }
 });
+--------------------------------------------------------------------------- */
 
 // Strava OAuth callback handler - accepts code from external redirect
 exports.stravaExchangeToken = functions.https.onRequest(async (req, res) => {
@@ -2663,8 +2699,8 @@ exports.stravaExchangeToken = functions.https.onRequest(async (req, res) => {
     }
 
     try {
-        const clientId = functions.config().strava?.client_id;
-        const clientSecret = functions.config().strava?.client_secret;
+        const clientId = CREDS.strava.clientId;
+        const clientSecret = CREDS.strava.clientSecret;
 
         // Exchange code for tokens
         const tokenResponse = await axios.post("https://www.strava.com/oauth/token", {
@@ -2703,8 +2739,8 @@ exports.stravaCallback = functions.https.onRequest(async (req, res) => {
     }
 
     try {
-        const clientId = functions.config().strava?.client_id;
-        const clientSecret = functions.config().strava?.client_secret;
+        const clientId = CREDS.strava.clientId;
+        const clientSecret = CREDS.strava.clientSecret;
 
         // Exchange code for tokens
         const tokenResponse = await axios.post("https://www.strava.com/oauth/token", {
@@ -2754,7 +2790,7 @@ exports.getStravaAuthUrl = functions.https.onRequest((req, res) => {
         return;
     }
 
-    const clientId = functions.config().strava?.client_id;
+    const clientId = CREDS.strava.clientId;
 
     if (!clientId) {
         res.status(500).send("Strava not configured");
@@ -2780,8 +2816,8 @@ exports.whoopCallback = functions.https.onRequest(async (req, res) => {
     }
 
     try {
-        const clientId = functions.config().whoop?.client_id;
-        const clientSecret = functions.config().whoop?.client_secret;
+        const clientId = CREDS.whoop.clientId;
+        const clientSecret = CREDS.whoop.clientSecret;
         const redirectUri = "https://us-central1-ckubal-homepage-be.cloudfunctions.net/whoopCallback";
 
         // Exchange code for tokens
@@ -2842,7 +2878,7 @@ exports.getWhoopAuthUrl = functions.https.onRequest((req, res) => {
         return;
     }
 
-    const clientId = functions.config().whoop?.client_id;
+    const clientId = CREDS.whoop.clientId;
 
     if (!clientId) {
         res.status(500).send("WHOOP not configured");
