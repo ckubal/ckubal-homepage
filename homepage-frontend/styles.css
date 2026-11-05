@@ -2642,7 +2642,7 @@ a.build-slide-link:hover .build-title {
     .shoe-swiper-container {
         width: 100% !important;
         max-width: 100% !important;
-        height: 280px !important; /* Good height for shoes */
+        height: auto !important; /* hug the card */
         margin: 0 auto !important;
         padding: 0 10px !important;
         overflow: hidden !important;
@@ -2652,7 +2652,7 @@ a.build-slide-link:hover .build-title {
     .jersey-swiper-container {
         width: 100% !important;
         max-width: 100% !important;
-        height: 280px !important; /* Good height for jerseys */
+        height: auto !important; /* hug the card */
         margin: 0 auto !important;
         padding: 0 10px !important;
         overflow: hidden !important;
@@ -2693,8 +2693,8 @@ a.build-slide-link:hover .build-title {
     /* Slide width is set inline by Swiper from slidesPerView. Forcing it to
        auto here made slides ~150px while Swiper positioned them as ~295px,
        which pushed the active slide thousands of px off-screen on phones. */
-    /* records: the swiper and its cards size to the cover, not to a fixed height */
-    .record-swiper {
+    /* collections: the swiper and its cards size to the image, not to a fixed height */
+    .record-swiper, .shoe-swiper, .jersey-swiper {
         height: auto;
         padding: 10px 20px 14px;
     }
@@ -2713,10 +2713,11 @@ a.build-slide-link:hover .build-title {
     }
     
     .shoe-swiper .swiper-slide {
+        height: auto !important;
         text-align: center !important;
         background: rgba(255, 255, 255, 0.03) !important;
         border-radius: 8px !important;
-        padding: 15px !important;
+        padding: 14px 14px 16px !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         display: flex !important;
         flex-direction: column !important;
@@ -2725,10 +2726,11 @@ a.build-slide-link:hover .build-title {
     }
     
     .jersey-swiper .swiper-slide {
+        height: auto !important;
         text-align: center !important;
         background: rgba(255, 255, 255, 0.03) !important;
         border-radius: 8px !important;
-        padding: 15px 10px 20px 10px !important; /* Jerseys have good spacing already */
+        padding: 14px 14px 16px !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         display: flex !important;
         flex-direction: column !important;
@@ -2753,14 +2755,19 @@ a.build-slide-link:hover .build-title {
         font-size: 1rem;
     }
     
+    /* the image is the point of the card: fill the slide width (sources are 500x312 / 500x342) */
     .shoe-swiper .shoe-image {
-        width: 160px !important;
-        height: 100px !important;
+        width: 100% !important;
+        height: auto !important;
+        aspect-ratio: 500 / 312;
+        margin-bottom: 10px !important;
     }
-    
+
     .jersey-swiper .jersey-image {
-        width: 140px !important;
-        height: 100px !important;
+        width: 100% !important;
+        height: auto !important;
+        aspect-ratio: 500 / 342;
+        margin-bottom: 10px !important;
     }
     
     /* Mobile Swiper fallback - if Swiper fails to initialize */
@@ -2867,18 +2874,9 @@ a.build-slide-link:hover .build-title {
         font-size: 1.6rem;
     }
     
-    /* Collection swipers on very small screens (record covers keep the
-       full-width sizing from the 768px rules) */
+    /* Collection swipers on very small screens keep the full-width image
+       sizing from the 768px rules. */
 
-    .shoe-swiper .shoe-image {
-        width: 150px;
-    }
-    
-    .jersey-swiper .jersey-image {
-        width: 160px;
-        height: 100px;
-    }
-    
     /* Ensure touch targets are large enough and don't cause overflow */
     .swiper-button-next,
     .swiper-button-prev {

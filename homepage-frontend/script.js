@@ -1440,10 +1440,12 @@ function initializeShoeCollection(carouselId = 'shoe-carousel') {
     shoeCollectionInitialized = true;
     console.log('Initializing shoe collection with Swiper...');
     
+    const isPhone = window.innerWidth <= 768;
+
     // Generate Swiper slides for all shoes
     const shoeHTML = shoeCollection.map(shoe => `
         <div class="swiper-slide">
-            <img src="assets/shoes/${shoe.image}" alt="${shoe.name}" class="shoe-image" loading="lazy" decoding="async" />
+            <img ${isPhone ? 'data-src' : 'src'}="assets/shoes/${shoe.image}" alt="${shoe.name}" class="shoe-image" ${isPhone ? '' : 'loading="lazy"'} decoding="async" />
             <div class="shoe-brand">${shoe.brand}</div>
             <div class="shoe-name">${shoe.name}</div>
             <div class="shoe-colorway">'${shoe.colorway}'</div>
@@ -1466,12 +1468,9 @@ function initializeShoeCollection(carouselId = 'shoe-carousel') {
         
         const randomIndex = Math.floor(Math.random() * shoeCollection.length);
         
-        const shoeSwiper = window.currentShoeSwiper = new Swiper('.shoe-swiper', {
+        const desktopOptions = {
             effect: 'coverflow',
-            grabCursor: true,
-            centeredSlides: true,
             slidesPerView: 1.4,
-            initialSlide: randomIndex,
             loop: true,
             loopAdditionalSlides: 3,
             keyboard: {
@@ -1482,7 +1481,6 @@ function initializeShoeCollection(carouselId = 'shoe-carousel') {
                 delay: 2000,
                 disableOnInteraction: false,
             },
-            speed: 2000,
             coverflowEffect: {
                 rotate: 35,
                 stretch: -20,
@@ -1526,6 +1524,20 @@ function initializeShoeCollection(carouselId = 'shoe-carousel') {
                 nextEl: '.shoe-swiper .swiper-button-next',
                 prevEl: '.shoe-swiper .swiper-button-prev',
             },
+        };
+
+        const phoneOptions = {
+            ...PHONE_STRIP_OPTIONS,
+            slidesPerView: 1.15,
+            spaceBetween: 15,
+        };
+
+        const shoeSwiper = window.currentShoeSwiper = new Swiper('.shoe-swiper', {
+            grabCursor: true,
+            centeredSlides: true,
+            initialSlide: randomIndex,
+            speed: 2000,
+            ...(isPhone ? phoneOptions : desktopOptions),
             on: {
                 init: function () {
                     console.log('Shoe Swiper initialized successfully on slide:', randomIndex);
@@ -1534,12 +1546,14 @@ function initializeShoeCollection(carouselId = 'shoe-carousel') {
                         this.update();
                         this.updateSlides();
                         this.slideTo(this.activeIndex, 0);
+                        if (isPhone) startStripGlide(this);
                     }, 50);
                 },
                 slideChange: function () {
                     console.log('Shoe slide changed to:', this.activeIndex);
                 },
                 resize: function() {
+                    if (isPhone) return;
                     this.update();
                     this.updateSlides();
                 }
@@ -1586,10 +1600,12 @@ function initializeJerseyCollection(carouselId = 'jersey-carousel') {
     jerseyCollectionInitialized = true;
     console.log('Initializing jersey collection with Swiper...');
     
+    const isPhone = window.innerWidth <= 768;
+
     // Generate Swiper slides for all jerseys
     const jerseyHTML = jerseyCollection.map(jersey => `
         <div class="swiper-slide">
-            <img src="assets/jerseys/${jersey.image}" alt="${jersey.player} ${jersey.team}" class="jersey-image" loading="lazy" decoding="async" />
+            <img ${isPhone ? 'data-src' : 'src'}="assets/jerseys/${jersey.image}" alt="${jersey.player} ${jersey.team}" class="jersey-image" ${isPhone ? '' : 'loading="lazy"'} decoding="async" />
             <div class="jersey-team">${jersey.team}</div>
             <div class="jersey-player">${jersey.player}</div>
             <div class="jersey-number">#${jersey.number}</div>
@@ -1612,12 +1628,9 @@ function initializeJerseyCollection(carouselId = 'jersey-carousel') {
         
         const randomIndex = Math.floor(Math.random() * jerseyCollection.length);
         
-        const jerseySwiper = window.currentJerseySwiper = new Swiper('.jersey-swiper', {
+        const desktopOptions = {
             effect: 'coverflow',
-            grabCursor: true,
-            centeredSlides: true,
             slidesPerView: 1.4,
-            initialSlide: randomIndex,
             loop: true,
             loopAdditionalSlides: 3,
             keyboard: {
@@ -1628,7 +1641,6 @@ function initializeJerseyCollection(carouselId = 'jersey-carousel') {
                 delay: 2000,
                 disableOnInteraction: false,
             },
-            speed: 2000,
             coverflowEffect: {
                 rotate: 35,
                 stretch: -20,
@@ -1672,6 +1684,20 @@ function initializeJerseyCollection(carouselId = 'jersey-carousel') {
                 nextEl: '.jersey-swiper .swiper-button-next',
                 prevEl: '.jersey-swiper .swiper-button-prev',
             },
+        };
+
+        const phoneOptions = {
+            ...PHONE_STRIP_OPTIONS,
+            slidesPerView: 1.1,
+            spaceBetween: 10,
+        };
+
+        const jerseySwiper = window.currentJerseySwiper = new Swiper('.jersey-swiper', {
+            grabCursor: true,
+            centeredSlides: true,
+            initialSlide: randomIndex,
+            speed: 2000,
+            ...(isPhone ? phoneOptions : desktopOptions),
             on: {
                 init: function () {
                     console.log('Jersey Swiper initialized successfully on slide:', randomIndex);
@@ -1680,12 +1706,14 @@ function initializeJerseyCollection(carouselId = 'jersey-carousel') {
                         this.update();
                         this.updateSlides();
                         this.slideTo(this.activeIndex, 0);
+                        if (isPhone) startStripGlide(this);
                     }, 50);
                 },
                 slideChange: function () {
                     console.log('Jersey slide changed to:', this.activeIndex);
                 },
                 resize: function() {
+                    if (isPhone) return;
                     this.update();
                     this.updateSlides();
                 }
@@ -1970,6 +1998,17 @@ const recordCollection = [
 // Record collection functionality
 let recordCollectionInitialized = false;
 
+// Phone strip settings shared by the records, sneaker and jersey carousels
+// (see startStripGlide). Loop mode and Swiper's resize/observer updates would
+// snap a long glide; autoplay, keyboard and navigation are replaced by it.
+const PHONE_STRIP_OPTIONS = {
+    effect: 'slide',
+    loop: false,
+    speed: 350, // snap speed after a swipe; the glide passes its own duration
+    updateOnWindowResize: false,
+    observer: false,
+};
+
 function initializeRecordCollection(carouselId = 'record-carousel') {
     // Only skip if static record carousel already initialized  
     if (recordCollectionInitialized && carouselId === 'record-carousel') return;
@@ -2025,13 +2064,13 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
         }
         
         const randomIndex = Math.floor(Math.random() * recordCollection.length);
-        // Phones get a different motion model (see startRecordGlide): the full
+        // Phones get a different motion model (see startStripGlide): the full
         // strip in the DOM and one long transition per chunk of covers.
         // Desktop keeps coverflow with virtual slides and per-cover autoplay.
         const isPhone = window.innerWidth <= 768;
 
         if (isPhone) {
-            // Covers start without a src; startRecordGlide loads them just
+            // Covers start without a src; startStripGlide loads them just
             // ahead of the strip. (Native loading="lazy" never fires for
             // images carried into view by a compositor transition on iOS,
             // which left blank white squares.)
@@ -2090,28 +2129,16 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
         };
 
         const phoneOptions = {
-            effect: 'slide',
+            ...PHONE_STRIP_OPTIONS,
             slidesPerView: 1.2,
             spaceBetween: 20,
-            // Snap speed after a swipe. (The glide passes its own duration.)
-            speed: 350,
-            // Long glides and loop-mode housekeeping don't mix; the glide
-            // rewinds at the end of the strip instead.
-            loop: false,
-            // iOS fires resize when the toolbar collapses on scroll; Swiper's
-            // resize update would snap the strip mid-glide. Width changes are
-            // handled in startRecordGlide.
-            updateOnWindowResize: false,
-            observer: false,
-            // Arrows are wired in startRecordGlide so they step from the cover
-            // that is actually visible.
         };
 
         const recordSwiper = window.currentRecordSwiper = new Swiper('.record-swiper', {
             grabCursor: true,
             centeredSlides: true,
             initialSlide: randomIndex,
-            speed: 2000,
+            speed: 2500, // desktop ticker pace; phones glide at the same 2.5s per cover
             ...(isPhone ? phoneOptions : desktopOptions),
             on: {
                 init: function () {
@@ -2121,7 +2148,7 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
                         this.update();
                         this.updateSlides();
                         this.slideTo(this.activeIndex, 0);
-                        if (isPhone) startRecordGlide(this);
+                        if (isPhone) startStripGlide(this);
                     }, 50);
                 },
                 slideChange: function () {
@@ -2141,14 +2168,14 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
     console.log('Record collection Swiper initialization complete');
 }
 
-// Phones: a continuous strip without restarting a CSS transition at every
-// cover. Each restart costs a main-thread frame and shows as a hitch on real
+// Phones (records, sneakers, jerseys): a continuous strip without restarting
+// a CSS transition at every card. Each restart costs a main-thread frame and shows as a hitch on real
 // hardware no matter how small the DOM is, so instead the strip glides to
 // the end of the shelf in ONE long linear transition that the compositor
 // runs with no JavaScript in the loop (the only restart is the rewind, about
 // every five minutes). Arrows and swipes interrupt it and it resumes from
 // wherever the strip actually is.
-function startRecordGlide(swiper, perSlideMs = 2000) {
+function startStripGlide(swiper, perSlideMs = 2500) {
     const last = () => swiper.slides.length - 1;
 
     // Index of the cover nearest the centre right now, read from the real
