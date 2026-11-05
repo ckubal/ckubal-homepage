@@ -1,0 +1,56 @@
+{
+ "the-beatles-sgt-peppers.jpg": {
+  "spotify_id": "6QaVfG1pHYl1z15ZxkvVDW",
+  "why": "standard 13-track remaster, not the super deluxe"
+ },
+ "nirvana-nevermind.jpg": {
+  "spotify_id": "2guirTSEqLizK7j9i1MTTZ",
+  "why": "standard 13-track remaster, not the box set"
+ },
+ "panic-at-the-disco-fever.jpg": {
+  "spotify_id": "2YeOhhJg3OWpN0F1VYPxtW",
+  "why": "original 2005 release, not the 20th anniversary deluxe"
+ },
+ "eminem-infinite.jpg": {
+  "skip": true,
+  "why": "not on spotify (only a 2017 single by another artist matches the title)"
+ },
+ "frank-ocean-nostalgia-ultra.jpg": {
+  "skip": true,
+  "why": "unreleased mixtape; not on spotify"
+ },
+ "frank-ocean-endless.jpg": {
+  "skip": true,
+  "why": "not on spotify (the 2024 'Endless' is another artist)"
+ },
+ "bright-eyes-vinyl-box-set.jpg": {
+  "skip": true,
+  "why": "box set of several albums"
+ },
+ "mac-miller-tiny-desk.jpg": {
+  "skip": true,
+  "why": "not on spotify"
+ },
+ "wait-what-the-notorious-xx.jpg": {
+  "url": "http://www.waitwhatmusic.com/",
+  "link_label": "listen on waitwhatmusic.com",
+  "why": "charlie's own mashup album; tracklist from musicbrainz",
+  "tracks": [
+   "dead wrong intro",
+   "juicy-r",
+   "it's all about the crystalizabeths",
+   "islands is the limit",
+   "one more chance for a heart to skip a beat",
+   "suicidal fantasy",
+   "everyday shelter",
+   "basic hypnosis",
+   "infinite victory",
+   "the curious incident of big poppa in the nighttime",
+   "mo stars mo problems"
+  ]
+ },
+ "puff-daddy-no-way-out.jpg": {
+  "spotify_id": "4OGaOZUHLhSeiicZB909aL",
+  "why": "spotify credits it to diddy; original 17-track release"
+ }
+}

@@ -1,0 +1,143 @@
+# record match report
+
+- **andrew bird|armchair apocrypha** (andrew-bird-armchair-apocrypha.jpg) -> Armchair Apocrypha [https://open.spotify.com/album/0Xjqgs1BwXWSmdmgxOhnNT]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **andrew bird|the mysterious production of eggs** (andrew-bird-mysterious-production-of-eggs.jpg) -> The Mysterious Production of Eggs [https://open.spotify.com/album/0sF4zU3ZBsiVUY5CXBEMZi]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **a tribe called quest|people's instinctive travels and the paths of rhythm** (a-tribe-called-quest-peoples-instinctive-travels.jpg) -> People's Instinctive Travels and the Paths of Rhythm (25th Anniversary Edition) [https://open.spotify.com/album/5DMRGZTzA3vVcLDNQS1ynv]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+  - edition in title: "People's Instinctive Travels and the Paths of Rhythm (25th Anniversary Edition)"
+- **the beatles|revolver** (the-beatles-revolver.jpg) -> Revolver (Remastered 2009) [https://open.spotify.com/album/3PRoXYsngSwjEQWR5PsHWR]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+  - edition in title: "Revolver (Remastered 2009)"
+- **the beatles|sgt. pepper's lonely hearts club band** (the-beatles-sgt-peppers.jpg) -> Sgt. Pepper's Lonely Hearts Club Band (Remastered 2009) [https://open.spotify.com/album/6QaVfG1pHYl1z15ZxkvVDW]
+  - edition in title: "Sgt. Pepper's Lonely Hearts Club Band (Remastered 2009)"
+- **belle & sebastian|fold your hands child, you walk like a peasant** (belle-sebastian-fold-your-hands.jpg) -> Fold Your Hands Child You Walk Like a Peasant [https://open.spotify.com/album/6iFULXb3ToZZmy8O4HNw3p]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **belle & sebastian|dear catastrophe waitress** (belle-sebastian-dear-catastrophe-waitress.jpg) -> Dear Catastrophe Waitress [https://open.spotify.com/album/7HNrDkHNFopKBXGWf0UZML]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **bloc party|a weekend in the city** (bloc-party-a-weekend-in-the-city.jpg) -> A Weekend in the City [https://open.spotify.com/album/5qGqM14bpZCa1qQ7jt5W7R]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **brand new|deja entendu** (brand-new-deja-entendu.jpg) -> Deja Entendu [https://open.spotify.com/album/6vDiMhyfSnTn18OY99BSQX]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **brand new|the devil and god are raging inside me** (brand-new-devil-and-god.jpg) -> The Devil And God Are Raging Inside Me [https://open.spotify.com/album/2YnqAuFmC2r8JeQVOIozTy]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **brian eno|ambient 1: music for airports** (brian-eno-ambient-1-music-for-airports.jpg) -> Ambient 1: Music For Airports (Remastered 2004) [https://open.spotify.com/album/063f8Ej8rLVTz9KkjQKEMa]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+  - edition in title: "Ambient 1: Music For Airports (Remastered 2004)"
+- **bright eyes|vinyl box set** (bright-eyes-vinyl-box-set.jpg) -> no match
+  - no spotify match (override: skip)
+- **chance the rapper|coloring book** (chance-the-rapper-coloring-book.jpg) -> Coloring Book [https://open.spotify.com/album/71QyofYesSsRMwFOTafnhB]
+  - MusicBrainz tracklist only 0% covered by Spotify version (5 vs 14 tracks)
+- **charli xcx|how i'm feeling now** (charli-xcx-how-im-feeling-now.jpg) -> how i'm feeling now [https://open.spotify.com/album/3a9qH2VEsSiOZvMrjaS0Nu]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **daft punk|random access memories** (daft-punk-random-access-memories.jpg) -> Random Access Memories [https://open.spotify.com/album/4m2880jivSbbyEGAKfITCa]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **death cab for cutie|plans** (death-cab-for-cutie-plans.jpg) -> Plans [https://open.spotify.com/album/1NFGnxmeIEBakre4DvLaJq]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **desaparecidos|read music, speak spanish** (desaparecidos-read-music-speak-spanish.jpg) -> Read Music/Speak Spanish [https://open.spotify.com/album/0N4zxBLNOwAz77ZDT23QLr]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **doechii|alligator bites never heal** (doechii-alligator-bites-never-heal.jpg) -> Alligator Bites Never Heal [https://open.spotify.com/album/60UzB8mOCMpc7xkuJE6Bwc]
+  - year 2024 vs collection 2022
+  - no MusicBrainz release group
+- **drake|if you're reading this it's too late** (drake-if-youre-reading-this.jpg) -> If You're Reading This It's Too Late [https://open.spotify.com/album/0ptlfJfwGTy0Yvrk14JK1I]
+  - no MusicBrainz release group
+- **drake|take care** (drake-take-care.jpg) -> Take Care (Deluxe) [https://open.spotify.com/album/6X1x82kppWZmDzlXXK3y3q]
+  - edition in title: "Take Care (Deluxe)"
+- **drake & future|what a time to be alive** (drake-future-what-a-time-to-be-alive.jpg) -> What A Time To Be Alive [https://open.spotify.com/album/1ozpmkWcCHwsQ4QTnxOOdT]
+  - MusicBrainz tracklist only 0% covered by Spotify version (11 vs 11 tracks)
+- **eminem|infinite** (eminem-infinite.jpg) -> no match
+  - no spotify match (override: skip)
+- **fall out boy|take this to your grave** (fall-out-boy-take-this-to-your-grave.jpg) -> Take This to Your Grave [https://open.spotify.com/album/7l4nnHG7upOnUM4WvAjToY]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **fall out boy|from under the cork tree** (fall-out-boy-from-under-cork-tree.jpg) -> From Under The Cork Tree [https://open.spotify.com/album/5nkUSlIhtoJZMOUlB0sNCp]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **the format|dog problems** (the-format-dog-problems.jpg) -> Dog Problems (Bonus Track Version) [https://open.spotify.com/album/5vwXmytOqWBSpKRtNELZSE]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+  - edition in title: "Dog Problems (Bonus Track Version)"
+- **frank ocean|nostalgia, ultra** (frank-ocean-nostalgia-ultra.jpg) -> no match
+  - no spotify match (override: skip)
+- **frank ocean|endless** (frank-ocean-endless.jpg) -> no match
+  - no spotify match (override: skip)
+- **fred again..|actual life** (fred-again-actual-life.jpg) -> Actual Life (April 14 - December 17 2020) [https://open.spotify.com/album/6o86bV7TAt5x4exc2qLDqC]
+  - MusicBrainz tracklist only 67% covered by Spotify version (6 vs 17 tracks)
+- **gratitude|gratitude** (gratitude-gratitude.jpg) -> Gratitude (U.S. Version) [https://open.spotify.com/album/2DJbKUcnEax2iN9Rw26bKR]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+  - edition in title: "Gratitude (U.S. Version)"
+- **incubus|morning view** (incubus-morning-view.jpg) -> Morning View [https://open.spotify.com/album/1rQZbncicoXyB64DqoH7OY]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **jay-z|vol. 2... hard knock life** (jay-z-vol-2-hard-knock-life.jpg) -> Vol.2... Hard Knock Life [https://open.spotify.com/album/3j1xCJdBMCl6wYQXurz2tb]
+  - MusicBrainz tracklist only 64% covered by Spotify version (22 vs 14 tracks)
+- **john coltrane|a love supreme** (john-coltrane-love-supreme.jpg) -> A Love Supreme [https://open.spotify.com/album/7Eoz7hJvaX1eFkbpQxC5PA]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+  - MusicBrainz tracklist only 67% covered by Spotify version (3 vs 4 tracks)
+- **jorja smith|lost & found** (jorja-smith-lost-and-found.jpg) -> Lost & Found [https://open.spotify.com/album/3AlSuZnX4ZCab8eoWnnfbm]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **lauryn hill|the miseducation of lauryn hill** (lauryn-hill-miseducation.jpg) -> The Miseducation of Lauryn Hill [https://open.spotify.com/album/1BZoqf8Zje5nGdwZhOjAtD]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **linkin park|hybrid theory** (linkin-park-hybrid-theory.jpg) -> Hybrid Theory [https://open.spotify.com/album/2pKw6GERJVAD61449B1EEM]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **mac miller|k.i.d.s.** (mac-miller-kids.jpg) -> K.I.D.S. [https://open.spotify.com/album/4GtuTUDyatvSHAoAr8bwsF]
+  - no MusicBrainz release group
+- **mac miller|macadelic** (mac-miller-macadelic.jpg) -> Macadelic [https://open.spotify.com/album/5uLB6ONw5NOYUNaKlnH7S1]
+  - no MusicBrainz release group
+- **mac miller|faces** (mac-miller-faces.jpg) -> Faces [https://open.spotify.com/album/5SKnXCvB4fcGSZu32o3LRY]
+  - year 2021 vs collection 2014
+  - no MusicBrainz release group
+- **mac miller|npr music tiny desk concert** (mac-miller-tiny-desk.jpg) -> no match
+  - no spotify match (override: skip)
+- **minus the bear|menos el oso** (minus-the-bear-menos-el-oso.jpg) -> Menos El Oso [https://open.spotify.com/album/13nMzRLvgjY6boXNkN426H]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **new found glory|sticks and stones** (new-found-glory-sticks-and-stones.jpg) -> Sticks And Stones [https://open.spotify.com/album/29rNv6X8yQsCMiIOqkHud8]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **nick drake|pink moon** (nick-drake-pink-moon.jpg) -> Pink Moon [https://open.spotify.com/album/5mwOo1zikswhmfHvtqVSXg]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **nirvana|nevermind** (nirvana-nevermind.jpg) -> Nevermind (Remastered) [https://open.spotify.com/album/2guirTSEqLizK7j9i1MTTZ]
+  - edition in title: "Nevermind (Remastered)"
+- **notorious b.i.g.|ready to die** (notorious-big-ready-to-die.jpg) -> Ready to Die (The Remaster; 2015 Remaster) [https://open.spotify.com/album/2ymwUMeW3BySLhKNp8UQZ3]
+  - edition in title: "Ready to Die (The Remaster; 2015 Remaster)"
+- **notorious b.i.g.|life after death** (notorious-big-life-after-death.jpg) -> Life After Death (2014 Remastered Edition) [https://open.spotify.com/album/7dRdaGSxgcBdJnrOviQRuB]
+  - edition in title: "Life After Death (2014 Remastered Edition)"
+- **phoenix|wolfgang amadeus phoenix** (phoenix-wolfgang-amadeus-phoenix.jpg) -> Wolfgang Amadeus Phoenix [https://open.spotify.com/album/7g4qoHjkYvfFkXJEZCjtc1]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **the postal service|give up** (the-postal-service-give-up.jpg) -> Give Up [https://open.spotify.com/album/1BSwkKATGVCMgNuN8ve7mz]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **purity ring|another eternity** (purity-ring-another-eternity.jpg) -> another eternity [https://open.spotify.com/album/5ydKh3bO3jF6oZWkBrzwpn]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **red hot chili peppers|stadium arcadium** (red-hot-chili-peppers-stadium-arcadium.jpg) -> Stadium Arcadium [https://open.spotify.com/album/7xl50xr9NDkd3i2kBbzsNZ]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **the shins|wincing the night away** (the-shins-wincing-the-night-away.jpg) -> Wincing The Night Away [https://open.spotify.com/album/4Tm0dXi3s3aSAqng2DACHr]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **sigur rós|( )** (sigur-ros-parentheses.jpg) -> ( ) [https://open.spotify.com/album/3FR8CV7OSyZDnxneavnh8t]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+  - MusicBrainz tracklist only 0% covered by Spotify version (8 vs 8 tracks)
+- **sigur rós|takk...** (sigur-ros-takk.jpg) -> Takk... [https://open.spotify.com/album/12tw1A9HmwE3MHvPfHhdoP]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+  - MusicBrainz tracklist only 0% covered by Spotify version (5 vs 11 tracks)
+- **something corporate|leaving through the window** (something-corporate-leaving-through-the-window.jpg) -> Leaving Through The Window [https://open.spotify.com/album/1yFFvTKFLIJhqa6DhXjzix]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **taking back sunday|tell all your friends** (taking-back-sunday-tell-all-your-friends.jpg) -> Tell All Your Friends (Remastered) [https://open.spotify.com/album/0gBSoXYKsE3HHZNbgMPnEg]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+  - edition in title: "Tell All Your Friends (Remastered)"
+- **taking back sunday|where you want to be** (taking-back-sunday-where-you-want-to-be.jpg) -> Where You Want To Be [https://open.spotify.com/album/6D1rTYBev0y8ZKE5tD7OP9]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **taking back sunday|louder now** (taking-back-sunday-louder-now.jpg) -> Louder Now [https://open.spotify.com/album/6RaVoUH2WWlPFTswG2Akbp]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **taylor swift|1989** (taylor-swift-1989.jpg) -> 1989 [https://open.spotify.com/album/2QJmrSgbdM35R67eoGQo4j]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **tegan and sara|heartthrob** (tegan-and-sara-heartthrob.jpg) -> Heartthrob [https://open.spotify.com/album/5IUJ6v408Z7pECC3BXUJxX]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **third eye blind|third eye blind** (third-eye-blind-third-eye-blind.jpg) -> Third Eye Blind [https://open.spotify.com/album/2gToC0XAblE9h3UZD6aAaQ]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **vampire weekend|vampire weekend** (vampire-weekend-vampire-weekend.jpg) -> Vampire Weekend [https://open.spotify.com/album/7n8NJkGKAl2np1bXiRn0CY]
+  - Spotify version has extra tracks not on canonical release (11 vs 3)
+- **vampire weekend|contra** (vampire-weekend-contra.jpg) -> Contra [https://open.spotify.com/album/0H8cHlbp6eieUUOLmv4FzJ]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **vampire weekend|modern vampires of the city** (vampire-weekend-modern-vampires.jpg) -> Modern Vampires of the City [https://open.spotify.com/album/1GXMNFfoHF4sN7lG8gZq1j]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **the weeknd|house of balloons** (the-weeknd-house-of-balloons.jpg) -> House Of Balloons (Original) [https://open.spotify.com/album/7zCODUHkfuRxsUjtuzNqbd]
+  - no MusicBrainz release group
+- **the xx|xx** (the-xx-xx.jpg) -> xx [https://open.spotify.com/album/2av2ZSHlvD7rvLSsMvtYCG]
+  - no explicit tracks on the chosen version (may simply be a clean record)
+- **yellowcard|ocean avenue** (yellowcard-ocean-avenue.jpg) -> Ocean Avenue [https://open.spotify.com/album/24IBCzEJlHBI0ioxlSuSPA]
+  - no explicit tracks on the chosen version (may simply be a clean record)

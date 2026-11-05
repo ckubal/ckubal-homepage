@@ -2050,10 +2050,17 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
     // handful near the viewport exist in the DOM. With all 162 in the DOM,
     // every transition restart cost ~200ms of main thread on phones and the
     // continuous ticker hitched at each cover.
+    // Each slide is a card with two faces; tapping flips it to the tracklist
+    // (see setupRecordFlip). The back is filled on demand.
     const recordSlides = recordCollection.map(record => `
-            <img src="assets/records/${record.cover}" alt="${record.album}" class="record-cover" decoding="async" />
-            <div class="record-artist">${record.artist}</div>
-            <div class="record-album">${record.album}</div>
+            <div class="record-card"><div class="record-card-inner">
+                <div class="record-face record-front">
+                    <img src="assets/records/${record.cover}" alt="${record.album}" class="record-cover" decoding="async" />
+                    <div class="record-artist">${record.artist}</div>
+                    <div class="record-album">${record.album}</div>
+                </div>
+                <div class="record-face record-back"></div>
+            </div></div>
     `);
     recordCarousel.innerHTML = '';
     
@@ -2168,6 +2175,7 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
             }
         });
         
+        setupRecordFlip(recordSwiper);
         console.log('Record Swiper created:', recordSwiper);
     }, 500);
     
@@ -2197,6 +2205,7 @@ function startStripGlide(swiper, perSlideMs = 2500) {
     };
 
     let touching = false;
+    let paused = false; // a flipped card holds the strip still
     let resumeTimer = null;
 
     // Load covers from just behind the visible one to a dozen ahead (about
@@ -2220,7 +2229,7 @@ function startStripGlide(swiper, perSlideMs = 2500) {
     const loadTimer = setInterval(loadCoversNear, 1500);
 
     const glide = () => {
-        if (swiper.destroyed || swiper.animating || touching) return;
+        if (swiper.destroyed || swiper.animating || touching || paused) return;
         let from = visibleIndex();
         if (from >= last()) {
             // End of the strip (about every five minutes): start over.
@@ -2240,6 +2249,25 @@ function startStripGlide(swiper, perSlideMs = 2500) {
         const target = Math.max(0, Math.min(last(), visibleIndex() + dir));
         swiper.slideTo(target, 500); // its transitionEnd resumes the glide
         loadCoversNear();
+    };
+
+    // Freeze the strip exactly where it is (read the live transform, cut the
+    // transition) and let it carry on later from the same spot.
+    swiper.stripGlide = {
+        pause() {
+            if (paused || swiper.destroyed) return;
+            paused = true;
+            clearTimeout(resumeTimer);
+            const t = swiper.getTranslate();
+            swiper.setTransition(0);
+            swiper.setTranslate(t);
+            swiper.animating = false; // cutting a transition never fires transitionEnd
+        },
+        resume() {
+            if (!paused) return;
+            paused = false;
+            scheduleResume(300);
+        },
     };
 
     swiper.on('transitionEnd', () => scheduleResume(0));
@@ -2271,6 +2299,120 @@ function startStripGlide(swiper, perSlideMs = 2500) {
 
     loadCoversNear();
     glide();
+}
+
+// Tap a record to flip it over: the back lists the tracks and links to the
+// album on Spotify. Data comes from assets/records.json, built by
+// tools/spotify/match_records.py (canonical explicit release, cross-checked
+// against MusicBrainz) and fetched once, on the first flip.
+let recordDataPromise = null;
+function loadRecordData() {
+    if (!recordDataPromise) {
+        recordDataPromise = fetch('assets/records.json?v=20261105a')
+            .then(r => (r.ok ? r.json() : {}))
+            .catch(() => ({}));
+    }
+    return recordDataPromise;
+}
+
+function renderRecordBack(back, record, data) {
+    const sp = data[record.cover];
+    if (!sp) {
+        back.innerHTML = `<div class="record-back-body"><p class="record-back-empty">not on spotify</p></div>`;
+        return;
+    }
+    const tracks = sp.tracks.map((title, i) =>
+        `<li><span class="record-track-n">${i + 1}</span><span class="record-track-title">${escapeHtml(title)}</span></li>`
+    ).join('');
+    back.innerHTML = `
+        <div class="record-back-body"><ol class="record-tracks">${tracks}</ol></div>
+        <a class="record-play" href="${sp.url}" target="_blank" rel="noopener">${sp.link_label || 'play on spotify'}${sp.id ? ' <img src="assets/spotify.svg" alt="" class="list-spotify-icon">' : ''}</a>`;
+}
+
+function setupRecordFlip(swiper) {
+    let flippedIndex = null;
+    let pendingSlide = null; // a side cover clicked on desktop: centre it, then flip
+    let pendingTimer = null;
+
+    // Record index for a slide: virtual/loop slides carry it as an attribute,
+    // the phone strip is in collection order.
+    const recordIndexOf = (slide) => {
+        const v = slide.getAttribute('data-swiper-slide-index');
+        return v != null ? parseInt(v, 10) : Array.prototype.indexOf.call(swiper.slides, slide);
+    };
+    const hold = () => {
+        if (swiper.stripGlide) swiper.stripGlide.pause();
+        else if (swiper.autoplay) swiper.autoplay.stop();
+    };
+    const release = () => {
+        if (swiper.stripGlide) swiper.stripGlide.resume();
+        else if (swiper.autoplay) swiper.autoplay.start();
+    };
+    const turnBack = (card) => {
+        card.classList.remove('flipped');
+        card.classList.add('unflipping'); // keeps the 3D styles for the turn
+        setTimeout(() => card.classList.remove('unflipping'), 600);
+    };
+    const unflip = () => {
+        swiper.el.querySelectorAll('.record-card.flipped').forEach(turnBack);
+        if (flippedIndex === null) return;
+        flippedIndex = null;
+        release();
+    };
+    const flip = async (slide) => {
+        const card = slide.querySelector('.record-card');
+        if (!card) return;
+        const index = recordIndexOf(slide);
+        const back = card.querySelector('.record-back');
+        if (!back.dataset.rendered) {
+            const data = await loadRecordData();
+            if (swiper.destroyed) return;
+            renderRecordBack(back, recordCollection[index], data);
+            back.dataset.rendered = '1';
+        }
+        swiper.el.querySelectorAll('.record-card.flipped').forEach(turnBack);
+        card.classList.add('flipped');
+        flippedIndex = index;
+        hold();
+        // The phone strip stops wherever the tap caught it; settle the card
+        // in the centre (the glide stays paused through this transition).
+        if (swiper.stripGlide) swiper.slideTo(index, 300);
+    };
+
+    // Swiper's own click event only fires for a tap, never for a drag.
+    swiper.on('click', (sw, e) => {
+        if (e.target.closest('a')) return; // the spotify link
+        const slide = e.target.closest('.swiper-slide');
+        if (!slide) return;
+        const card = slide.querySelector('.record-card');
+        if (card && card.classList.contains('flipped')) { unflip(); return; }
+        // Desktop: a side cover comes to the centre first, then flips.
+        // (Compare by class: with virtual slides swiper.slides is only the
+        // rendered window, so indexes don't line up.)
+        if (!slide.classList.contains('swiper-slide-active') && !swiper.stripGlide) {
+            pendingSlide = slide;
+            hold(); // so autoplay can't carry on past it meanwhile
+            if (slide.classList.contains('swiper-slide-next')) swiper.slideNext(600);
+            else if (slide.classList.contains('swiper-slide-prev')) swiper.slidePrev(600);
+            else swiper.slideToLoop(recordIndexOf(slide), 600);
+            clearTimeout(pendingTimer);
+            pendingTimer = setTimeout(flipPending, 700); // in case transitionEnd never comes (background tab)
+            return;
+        }
+        flip(slide);
+    });
+    const flipPending = () => {
+        clearTimeout(pendingTimer);
+        if (pendingSlide) { const s = pendingSlide; pendingSlide = null; flip(s); }
+    };
+    swiper.on('transitionEnd', flipPending);
+    // Moving on (swipe, arrows, keyboard) turns the card back over.
+    swiper.on('slideChange', () => {
+        if (pendingSlide) return;
+        if (swiper.stripGlide && swiper.activeIndex === flippedIndex) return; // our own centring
+        unflip();
+    });
+    swiper.on('destroy', () => { flippedIndex = null; });
 }
 
 // Open a highlight the way a real click would - same content dispatch, same
@@ -4196,6 +4338,7 @@ function showRecordCollection(container) {
                 <div class="swiper-button-prev"></div>
             </div>
         </div>
+        <p class="records-hint">tap a record to flip it over</p>
     `;
     // init records - wait for page readiness
     waitForReadyThenInitialize(() => initializeRecordCollection('dynamic-record-carousel'), 'records');
