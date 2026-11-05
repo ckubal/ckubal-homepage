@@ -2025,13 +2025,20 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
         }
         
         const randomIndex = Math.floor(Math.random() * recordCollection.length);
-        
-        const recordSwiper = window.currentRecordSwiper = new Swiper('.record-swiper', {
+        // Phones get a different motion model (see startRecordGlide): the full
+        // strip in the DOM and one long transition per chunk of covers.
+        // Desktop keeps coverflow with virtual slides and per-cover autoplay.
+        const isPhone = window.innerWidth <= 768;
+
+        if (isPhone) {
+            recordCarousel.innerHTML = recordSlides
+                .map(inner => `<div class="swiper-slide">${inner.replace('class="record-cover"', 'class="record-cover" loading="lazy"')}</div>`)
+                .join('');
+        }
+
+        const desktopOptions = {
             effect: 'coverflow',
-            grabCursor: true,
-            centeredSlides: true,
             slidesPerView: 2.5,
-            initialSlide: randomIndex,
             loop: true,
             loopAdditionalSlides: 5,
             keyboard: {
@@ -2045,13 +2052,12 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
             },
             // Continuous ticker: no pause between slides, each slide takes
             // `speed` ms to pass, linear easing is set in CSS. Resumes after
-            // a swipe; pauses while the mouse is over it on desktop.
+            // a swipe; pauses while the mouse is over it.
             autoplay: {
                 delay: 0,
                 disableOnInteraction: false,
                 pauseOnMouseEnter: true,
             },
-            speed: 2000,
             coverflowEffect: {
                 rotate: 35,
                 stretch: -80,
@@ -2059,47 +2065,48 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
                 modifier: 1,
                 slideShadows: true,
             },
-            // Force initialization and proper loading
             observer: true,
             observeParents: true,
             observeSlideChildren: true,
-            updateOnImagesReady: true,
-            preloadImages: false,
-            lazy: {
-                loadPrevNext: true,
-            },
             breakpoints: {
-                // Mobile: optimized for records
                 320: {
                     slidesPerView: 1.2,
                     spaceBetween: 20,
                     centeredSlides: true,
-                    effect: 'slide', // Simpler effect for mobile
-                    coverflowEffect: {
-                        rotate: 0,
-                        stretch: 0,
-                        depth: 0,
-                        modifier: 1,
-                        slideShadows: false,
-                    },
                 },
-                // Desktop: coverflow effect
                 769: {
                     slidesPerView: 2.5,
                     spaceBetween: 0,
-                    coverflowEffect: {
-                        rotate: 35,
-                        stretch: -80,
-                        depth: 200,
-                        modifier: 1,
-                        slideShadows: true,
-                    },
-                }
+                },
             },
             navigation: {
                 nextEl: '.record-swiper .swiper-button-next',
                 prevEl: '.record-swiper .swiper-button-prev',
             },
+        };
+
+        const phoneOptions = {
+            effect: 'slide',
+            slidesPerView: 1.2,
+            spaceBetween: 20,
+            // Long glides and loop-mode housekeeping don't mix; the glide
+            // rewinds at the end of the strip instead.
+            loop: false,
+            // iOS fires resize when the toolbar collapses on scroll; Swiper's
+            // resize update would snap the strip mid-glide. Width changes are
+            // handled in startRecordGlide.
+            updateOnWindowResize: false,
+            observer: false,
+            // Arrows are wired in startRecordGlide so they step from the cover
+            // that is actually visible.
+        };
+
+        const recordSwiper = window.currentRecordSwiper = new Swiper('.record-swiper', {
+            grabCursor: true,
+            centeredSlides: true,
+            initialSlide: randomIndex,
+            speed: 2000,
+            ...(isPhone ? phoneOptions : desktopOptions),
             on: {
                 init: function () {
                     console.log('Record Swiper initialized successfully on slide:', randomIndex);
@@ -2108,12 +2115,14 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
                         this.update();
                         this.updateSlides();
                         this.slideTo(this.activeIndex, 0);
+                        if (isPhone) startRecordGlide(this);
                     }, 50);
                 },
                 slideChange: function () {
                     console.log('Record slide changed to:', this.activeIndex);
                 },
                 resize: function() {
+                    if (isPhone) return;
                     this.update();
                     this.updateSlides();
                 }
@@ -2124,6 +2133,80 @@ function initializeRecordCollection(carouselId = 'record-carousel') {
     }, 500);
     
     console.log('Record collection Swiper initialization complete');
+}
+
+// Phones: a continuous strip without restarting a CSS transition at every
+// cover. Each restart costs a main-thread frame and shows as a hitch on real
+// hardware no matter how small the DOM is, so instead the strip glides across
+// a chunk of covers in ONE long linear transition that the compositor runs
+// with no JavaScript in the loop. Arrows and swipes interrupt it and it
+// resumes from wherever the strip actually is.
+function startRecordGlide(swiper, perSlideMs = 2000, chunk = 30) {
+    const last = () => swiper.slides.length - 1;
+
+    // Index of the cover nearest the centre right now, read from the real
+    // transform. (activeIndex points at the glide's destination mid-glide.)
+    const visibleIndex = () => {
+        const t = -swiper.getTranslate();
+        const grid = swiper.snapGrid;
+        let best = 0;
+        for (let i = 1; i < grid.length; i++) {
+            if (Math.abs(grid[i] - t) < Math.abs(grid[best] - t)) best = i;
+        }
+        return best;
+    };
+
+    let touching = false;
+    let resumeTimer = null;
+
+    const glide = () => {
+        if (swiper.destroyed || swiper.animating || touching) return;
+        let from = visibleIndex();
+        if (from >= last()) {
+            // End of the strip (about every five minutes): start over.
+            swiper.slideTo(0, 0, false);
+            void swiper.wrapperEl.offsetWidth; // flush so the glide starts from 0
+            from = 0;
+        }
+        const to = Math.min(from + chunk, last());
+        swiper.slideTo(to, (to - from) * perSlideMs);
+    };
+    const scheduleResume = (delay) => {
+        clearTimeout(resumeTimer);
+        resumeTimer = setTimeout(glide, delay);
+    };
+    const step = (dir) => {
+        const target = Math.max(0, Math.min(last(), visibleIndex() + dir));
+        swiper.slideTo(target, 500); // its transitionEnd resumes the glide
+    };
+
+    swiper.on('transitionEnd', () => scheduleResume(0));
+    swiper.on('touchStart', () => { touching = true; clearTimeout(resumeTimer); });
+    swiper.on('touchEnd', () => { touching = false; scheduleResume(1200); }); // a tap with no slide has no transitionEnd
+
+    const nextBtn = swiper.el.querySelector('.swiper-button-next');
+    const prevBtn = swiper.el.querySelector('.swiper-button-prev');
+    if (nextBtn) nextBtn.addEventListener('click', () => step(1));
+    if (prevBtn) prevBtn.addEventListener('click', () => step(-1));
+
+    // Only a width change matters (rotation). The iOS toolbar collapsing on
+    // scroll fires resize too and must not reset the strip.
+    let lastWidth = window.innerWidth;
+    const onResize = () => {
+        if (swiper.destroyed || window.innerWidth === lastWidth) return;
+        lastWidth = window.innerWidth;
+        const from = visibleIndex();
+        swiper.update();
+        swiper.slideTo(from, 0, false);
+        scheduleResume(0);
+    };
+    window.addEventListener('resize', onResize);
+    swiper.on('destroy', () => {
+        clearTimeout(resumeTimer);
+        window.removeEventListener('resize', onResize);
+    });
+
+    glide();
 }
 
 // Open a highlight the way a real click would - same content dispatch, same
