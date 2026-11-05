@@ -2128,7 +2128,11 @@ button.nav-arrow,
 
 /* continuous autoplay (delay 0) needs linear easing or it pulses per slide */
 .record-swiper .swiper-wrapper,
-.record-swiper .swiper-slide {
+.record-swiper .swiper-slide,
+.shoe-swiper .swiper-wrapper,
+.shoe-swiper .swiper-slide,
+.jersey-swiper .swiper-wrapper,
+.jersey-swiper .swiper-slide {
     transition-timing-function: linear !important;
 }
 

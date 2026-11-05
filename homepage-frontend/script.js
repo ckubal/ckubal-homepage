@@ -1477,9 +1477,12 @@ function initializeShoeCollection(carouselId = 'shoe-carousel') {
                 enabled: true,
                 onlyInViewport: true,
             },
+            // Continuous ticker, same as the records shelf: no pause between
+            // cards, linear easing from CSS, pauses while hovered.
             autoplay: {
-                delay: 2000,
+                delay: 0,
                 disableOnInteraction: false,
+                pauseOnMouseEnter: true,
             },
             coverflowEffect: {
                 rotate: 35,
@@ -1536,7 +1539,7 @@ function initializeShoeCollection(carouselId = 'shoe-carousel') {
             grabCursor: true,
             centeredSlides: true,
             initialSlide: randomIndex,
-            speed: 2000,
+            speed: 2500, // desktop ticker pace; phones glide at the same 2.5s per card
             ...(isPhone ? phoneOptions : desktopOptions),
             on: {
                 init: function () {
@@ -1637,9 +1640,12 @@ function initializeJerseyCollection(carouselId = 'jersey-carousel') {
                 enabled: true,
                 onlyInViewport: true,
             },
+            // Continuous ticker, same as the records shelf: no pause between
+            // cards, linear easing from CSS, pauses while hovered.
             autoplay: {
-                delay: 2000,
+                delay: 0,
                 disableOnInteraction: false,
+                pauseOnMouseEnter: true,
             },
             coverflowEffect: {
                 rotate: 35,
@@ -1696,7 +1702,7 @@ function initializeJerseyCollection(carouselId = 'jersey-carousel') {
             grabCursor: true,
             centeredSlides: true,
             initialSlide: randomIndex,
-            speed: 2000,
+            speed: 2500, // desktop ticker pace; phones glide at the same 2.5s per card
             ...(isPhone ? phoneOptions : desktopOptions),
             on: {
                 init: function () {
