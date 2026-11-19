@@ -801,6 +801,8 @@ async function getThisYearReads() {
         functions.logger.info(`Fetched CSV, total rows: ${rows.length}`);
 
         const booksByMonth = {};
+        // Flat list in sheet-row order = the true reading order (oldest first).
+        const booksInOrder = [];
         const monthNames = ["january", "february", "march", "april", "may", "june",
             "july", "august", "september", "october", "november", "december"];
 
@@ -866,9 +868,12 @@ async function getThisYearReads() {
 
             // Try to access columns - if CSV has < 14 columns, we can't access K, L, N
             const monthNumber = columns.length > 8 ? (columns[8] ? parseInt(columns[8].trim()) : 0) : 0;
+            const ratingRaw = columns.length > 9 ? (columns[9] ? columns[9].trim().replace(/"/g, "") : "") : "";
             let title = columns.length > 10 ? (columns[10] ? columns[10].trim() : "") : "";
             const authorRaw = columns.length > 11 ? (columns[11] ? columns[11].trim() : "") : "";
+            const genreRaw = columns.length > 12 ? (columns[12] ? columns[12].trim() : "") : "";
             const status = columns.length > 13 ? (columns[13] ? columns[13].trim() : "") : "";
+            const comment = columns.length > 14 ? (columns[14] ? columns[14].trim().replace(/"/g, "") : "") : "";
 
             // If CSV doesn't have enough columns, log detailed warning
             if (columns.length < 14) {
@@ -965,11 +970,18 @@ async function getThisYearReads() {
                     booksByMonth[month] = [];
                 }
 
-                booksByMonth[month].push({
+                // normalize the F/NF genre column to the full form used elsewhere
+                const genre = /^n/i.test(genreRaw) ? "Non-Fiction" : (/^f/i.test(genreRaw) ? "Fiction" : genreRaw);
+                const bookEntry = {
                     title: title,
                     author: author,
                     month: month,
-                });
+                    rating: ratingRaw || "",
+                    genre: genre || "",
+                    comment: comment || "",
+                };
+                booksByMonth[month].push(bookEntry);
+                booksInOrder.push(bookEntry); // preserve true reading (row) order
                 rowsAdded++;
                 functions.logger.info(`Added completed book: "${title}" by ${author} (${month})`);
             } else if (title) {
@@ -1046,6 +1058,7 @@ async function getThisYearReads() {
             type: "thisYear",
             year: new Date().getFullYear(),
             monthlyReads: monthlyReads,
+            books: booksInOrder, // flat, in true reading order (oldest first)
         };
 
         functions.logger.info(`getThisYearReads returning: ${JSON.stringify(result, null, 2)}`);
@@ -1501,6 +1514,8 @@ async function getFavoriteReads() {
                 const row = rows[i];
                 const columns = parseCSVRow(row);
 
+                const favYear = columns[0] ? columns[0].trim().replace(/"/g, "") : "";
+                const favMonth = columns[1] ? columns[1].trim().replace(/"/g, "") : "";
                 const rating = columns[2] ? columns[2].trim().replace(/"/g, "") : "";
                 const bookTitle = columns[3] ? columns[3].trim().replace(/"/g, "") : "";
                 const author = columns[4] ? columns[4].trim().replace(/"/g, "") : "";
@@ -1535,6 +1550,8 @@ async function getFavoriteReads() {
                         rating: rating || "",
                         summary: summary || "",
                         genre: genre || "",
+                        year: favYear ? parseInt(favYear) || 0 : 0,
+                        month: favMonth ? parseInt(favMonth) || 0 : 0,
                     });
                     functions.logger.info(`Added recent read: "${bookTitle}" by ${author}`);
                 } else {
@@ -1554,6 +1571,7 @@ async function getFavoriteReads() {
 
                 // Skip rows with #N/A errors
                 const year = columns[0] ? columns[0].trim().replace(/"/g, "") : "";
+                const monthCol = columns[1] ? columns[1].trim().replace(/"/g, "") : "";
                 const rating = columns[2] ? columns[2].trim().replace(/"/g, "") : "";
                 const bookTitle = columns[3] ? columns[3].trim().replace(/"/g, "") : "";
                 const author = columns[4] ? columns[4].trim().replace(/"/g, "") : "";
@@ -1592,6 +1610,8 @@ async function getFavoriteReads() {
                         rating: rating || "",
                         summary: summary || "",
                         genre: genre || "",
+                        year: yearNum || 0,
+                        month: monthCol ? parseInt(monthCol) || 0 : 0,
                     });
                     functions.logger.info(
                         `Added recent read from row ${i+1}: "${bookTitle}" by ${author} (${yearNum})`,
